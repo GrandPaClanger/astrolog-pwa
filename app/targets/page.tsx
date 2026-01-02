@@ -32,43 +32,59 @@ export default function TargetsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(q);
 
+  async function loadTargets(queryText: string) {
+    setLoading(true);
+
+    let query = supabase
+      .from("v_target_catalog")
+      .select("*")
+      .order("last_imaged", { ascending: false, nullsFirst: false })
+      .order("catalog_no", { ascending: true });
+
+    if (queryText) query = query.ilike("catalog_no", `%${queryText}%`);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error(error);
+      setRows([]);
+    } else {
+      setRows((data as any) ?? []);
+    }
+    setLoading(false);
+  }
+
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      setLoading(true);
-
-      let query = supabase
-        .from("v_target_catalog")
-        .select("*")
-        .order("last_imaged", { ascending: false, nullsFirst: false })
-        .order("catalog_no", { ascending: true });
-
-      // simple search on catalog_no
-      if (q) query = query.ilike("catalog_no", `%${q}%`);
-
-      const { data, error } = await query;
-      if (!cancelled) {
-        if (error) {
-          console.error(error);
-          setRows([]);
-        } else {
-          setRows((data as any) ?? []);
-        }
-        setLoading(false);
-      }
-    }
-    load();
+    (async () => {
+      if (!cancelled) await loadTargets(q);
+    })();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
   const onSearch = () => {
     const params = new URLSearchParams(sp.toString());
     if (search.trim()) params.set("q", search.trim());
     else params.delete("q");
-    router.replace(`/targets?${params.toString()}`);
+    const qs = params.toString();
+    router.replace(qs ? `/targets?${qs}` : `/targets`);
   };
+
+  async function onDelete(targetId: number, label: string) {
+    const ok = confirm(`Delete target "${label}" AND all its sessions/panels?`);
+    if (!ok) return;
+
+    const { error } = await supabase.from("target").delete().eq("target_id", targetId);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    // Reload with current query
+    await loadTargets(q);
+  }
 
   const body = useMemo(() => {
     if (loading) return <p>Loading…</p>;
@@ -79,13 +95,21 @@ export default function TargetsPage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              {["Catalog No", "Description", "Start Date", "Last Imaged", "Total Integration"].map(
-                (h) => (
-                  <th key={h} style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #ddd" }}>
-                    {h}
-                  </th>
-                )
-              )}
+              {[
+                "Catalog No",
+                "Description",
+                "Start Date",
+                "Last Imaged",
+                "Total Integration",
+                "Actions",
+              ].map((h) => (
+                <th
+                  key={h}
+                  style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #ddd" }}
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -99,14 +123,44 @@ export default function TargetsPage() {
                 <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.description ?? ""}</td>
                 <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.start_date ?? ""}</td>
                 <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.last_imaged ?? ""}</td>
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{fmtHMS(r.total_integration_sec)}</td>
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
+                  {fmtHMS(r.total_integration_sec)}
+                </td>
+
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/targets/${r.target_id}/edit`);
+                      }}
+                      style={{ padding: "6px 10px" }}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(r.target_id, r.catalog_no);
+                      }}
+                      style={{ padding: "6px 10px" }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        <p style={{ marginTop: 10, opacity: 0.8 }}>
+          Delete will also remove child sessions/panels (DB cascade required).
+        </p>
       </div>
     );
-  }, [loading, rows, router]);
+  }, [loading, rows, router, q]);
 
   return (
     <main style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
