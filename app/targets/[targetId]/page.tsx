@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 type Session = {
   session_id: number;
-  session_start: string | null;
+  session_date: string | null;
   notes: string | null;
   telescope_name?: string | null;
 };
@@ -55,9 +55,9 @@ export default function TargetDetailPage() {
 
     const s = await supabase
       .from("session")
-      .select("session_id,session_start,notes")
+      .select("session_id,session_date,notes")
       .eq("target_id", tid)
-      .order("session_start", { ascending: false, nullsFirst: false });
+      .order("session_date", { ascending: false, nullsFirst: false });
 
     if (s.error) alert(s.error.message);
     setSessions((s.data as any) ?? []);
@@ -145,7 +145,7 @@ export default function TargetDetailPage() {
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
               <div>
                 <div style={{ fontWeight: 600 }}>
-                  Session #{s.session_id} {s.session_start ? `— ${s.session_start}` : ""}
+                  Session #{s.session_id} {s.session_date ? `— ${s.session_date}` : ""}
                 </div>
                 {s.notes && <div style={{ opacity: 0.85, marginTop: 4 }}>{s.notes}</div>}
               </div>
