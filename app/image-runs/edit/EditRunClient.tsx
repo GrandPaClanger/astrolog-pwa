@@ -8,7 +8,7 @@ type RunRow = {
   image_run_id: number;
   session_id: number;
   run_date: string | null;
-  panel_no1: number | null;
+  panel_no: number | null;
   panel_name: string | null;
   notes: string | null;
 };
