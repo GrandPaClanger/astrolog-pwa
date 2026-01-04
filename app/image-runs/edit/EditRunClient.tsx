@@ -55,7 +55,6 @@ export default function EditRunClient() {
     (async () => {
       if (!runId) return;
 
-      // load image_run header
       const r = await supabase
         .from("image_run")
         .select("image_run_id,session_id,run_date,panel_no,panel_name,notes")
@@ -70,15 +69,12 @@ export default function EditRunClient() {
       const rr = r.data as RunRow;
       setRow(rr);
 
-      // load target_id via session
       const s = await supabase.from("session").select("target_id").eq("session_id", rr.session_id).single();
       if (!s.error) setTargetId((s.data as any).target_id);
 
-      // load filter options
       const f = await supabase.from("filter").select("filter_id,name").order("name");
       if (!f.error) setFilters(((f.data as any) ?? []) as FilterOpt[]);
 
-      // load existing run_filter lines
       const rf = await supabase
         .from("run_filter")
         .select("filter_id,exposures,exposure_sec,gain,camera_offset,bin,notes")
@@ -119,7 +115,7 @@ export default function EditRunClient() {
   }, [runId]);
 
   const totalSec = useMemo(
-    () => lines.reduce((sum, l) => sum + (Number(l.exposures || 0) * Number(l.exposure_sec || 0)), 0),
+    () => lines.reduce((sum, l) => sum + Number(l.exposures || 0) * Number(l.exposure_sec || 0), 0),
     [lines]
   );
 
@@ -141,14 +137,12 @@ export default function EditRunClient() {
   async function save() {
     if (!row) return;
 
-    // basic validation
     for (const l of lines) {
       if (!l.filter_id) return alert("Each filter line needs a filter selected.");
     }
 
     setSaving(true);
 
-    // 1) update image_run header
     const up = await supabase
       .from("image_run")
       .update({
@@ -164,7 +158,6 @@ export default function EditRunClient() {
       return alert(up.error.message);
     }
 
-    // 2) replace all run_filter lines for this run (simple + reliable)
     const del = await supabase.from("run_filter").delete().eq("image_run_id", row.image_run_id);
     if (del.error) {
       setSaving(false);
@@ -246,9 +239,9 @@ export default function EditRunClient() {
               <th>Filter</th>
               <th>No. Exposures</th>
               <th>Exposure (sec)</th>
-              <th>Gain</th>
-              <th>Offset</th>
-              <th>Bin</th>
+              <th style={{ width: 80 }}>Gain</th>
+              <th style={{ width: 80 }}>Offset</th>
+              <th style={{ width: 65 }}>Bin</th>
               <th>Line Total</th>
               <th></th>
             </tr>
@@ -290,15 +283,17 @@ export default function EditRunClient() {
                     />
                   </td>
 
+                  {/* 20% smaller */}
                   <td>
                     <input
                       type="number"
                       value={l.gain ?? ""}
                       onChange={(e) => updateLine(i, { gain: e.target.value === "" ? null : Number(e.target.value) })}
-                      style={{ width: 90 }}
+                      style={{ width: 72 }}
                     />
                   </td>
 
+                  {/* 20% smaller */}
                   <td>
                     <input
                       type="number"
@@ -306,16 +301,17 @@ export default function EditRunClient() {
                       onChange={(e) =>
                         updateLine(i, { camera_offset: e.target.value === "" ? null : Number(e.target.value) })
                       }
-                      style={{ width: 90 }}
+                      style={{ width: 72 }}
                     />
                   </td>
 
+                  {/* 20% smaller */}
                   <td>
                     <input
                       type="number"
                       value={l.bin ?? ""}
                       onChange={(e) => updateLine(i, { bin: e.target.value === "" ? null : Number(e.target.value) })}
-                      style={{ width: 70 }}
+                      style={{ width: 56 }}
                     />
                   </td>
 
