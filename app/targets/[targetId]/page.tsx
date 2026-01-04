@@ -161,6 +161,7 @@ export default function TargetDetailPage() {
     })();
   }, [tid]);
 
+  // image_run_id -> seconds
   const runIntegrationSec = useMemo(() => {
     const m = new Map<number, number>();
     for (const rf of runFilters) {
@@ -171,6 +172,7 @@ export default function TargetDetailPage() {
     return m;
   }, [runFilters]);
 
+  // session_id -> seconds
   const sessionIntegrationSec = useMemo(() => {
     const m = new Map<number, number>();
     for (const r of runs) {
@@ -298,29 +300,38 @@ export default function TargetDetailPage() {
                   <div style={{ opacity: 0.75, marginTop: 6 }}>No runs yet.</div>
                 ) : (
                   <div style={{ marginTop: 6 }}>
-                    {theseRuns.map((r) => (
-                      <div
-                        key={r.image_run_id}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          padding: "8px 0",
-                          borderTop: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      >
-                        <div>
-                          {ukDate(r.run_date)} — Panel {r.panel_no ?? "—"} — {r.panel_name ?? ""}
-                        </div>
+                    {theseRuns.map((r) => {
+                      const runSec = runIntegrationSec.get(r.image_run_id) ?? 0;
 
-                        <div style={{ display: "flex", gap: 10 }}>
-                          <button onClick={() => router.push(`/image-runs/edit?image_run_id=${r.image_run_id}`)}>
-                            Edit Run
-                          </button>
-                          <button onClick={() => onDeleteRun(r.image_run_id)}>Delete Run</button>
+                      return (
+                        <div
+                          key={r.image_run_id}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            padding: "8px 0",
+                            borderTop: "1px solid rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            <div>
+                              {ukDate(r.run_date)} — Panel {r.panel_no ?? "—"} — {r.panel_name ?? ""}
+                            </div>
+                            <div style={{ opacity: 0.9 }}>
+                              Integration: <b>{fmtHMS(runSec)}</b>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <button onClick={() => router.push(`/image-runs/edit?image_run_id=${r.image_run_id}`)}>
+                              Edit Run
+                            </button>
+                            <button onClick={() => onDeleteRun(r.image_run_id)}>Delete Run</button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
