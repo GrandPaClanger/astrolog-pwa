@@ -18,9 +18,19 @@ function fmtHMS(totalSec: number) {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  return `${h.toString().padStart(2, "0")}:${m
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s
     .toString()
-    .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    .padStart(2, "0")}`;
+}
+
+// ISO date/timestamp -> DD/MM/YYYY (display only)
+function ukDate(iso: string | null | undefined) {
+  if (!iso) return "";
+  const iso10 = iso.includes("T") ? iso.slice(0, 10) : iso; // handle timestamps
+  const [y, m, d] = iso10.split("-").map(Number);
+  if (!y || !m || !d) return iso10; // fallback if unexpected format
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "UTC" }).format(dt);
 }
 
 export default function TargetsPage() {
@@ -82,10 +92,7 @@ export default function TargetsPage() {
     const ok = confirm(`Delete target "${label}" AND all its sessions/panels?`);
     if (!ok) return;
 
-    const { error } = await supabase
-      .from("target")
-      .delete()
-      .eq("target_id", targetId);
+    const { error } = await supabase.from("target").delete().eq("target_id", targetId);
 
     if (error) {
       alert(error.message);
@@ -104,14 +111,7 @@ export default function TargetsPage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              {[
-                "Catalog No",
-                "Description",
-                "Start Date",
-                "Last Imaged",
-                "Total Integration",
-                "Actions",
-              ].map((h) => (
+              {["Catalog No", "Description", "Start Date", "Last Imaged", "Total Integration", "Actions"].map((h) => (
                 <th
                   key={h}
                   style={{
@@ -133,25 +133,15 @@ export default function TargetsPage() {
                 style={{ cursor: "pointer" }}
                 onClick={() => router.push(`/targets/${r.target_id}`)}
               >
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
-                  {r.catalog_no}
-                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.catalog_no}</td>
 
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
-                  {r.description ?? ""}
-                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.description ?? ""}</td>
 
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
-                  {r.start_date ?? ""}
-                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{ukDate(r.start_date)}</td>
 
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
-                  {r.last_imaged ?? ""}
-                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{ukDate(r.last_imaged)}</td>
 
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
-                  {fmtHMS(r.total_integration_sec)}
-                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{fmtHMS(r.total_integration_sec)}</td>
 
                 <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -192,14 +182,7 @@ export default function TargetsPage() {
     <main style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
       <h1>Targets</h1>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          margin: "12px 0",
-        }}
-      >
+      <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "12px 0" }}>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -212,10 +195,7 @@ export default function TargetsPage() {
           Search
         </button>
 
-        <button
-          style={{ padding: "8px 12px" }}
-          onClick={() => router.push("/sessions/new")}
-        >
+        <button style={{ padding: "8px 12px" }} onClick={() => router.push("/sessions/new")}>
           New Session
         </button>
       </div>

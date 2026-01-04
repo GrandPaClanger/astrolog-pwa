@@ -242,6 +242,8 @@ export default function TargetDetailPage() {
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => router.push("/targets")}>Home</button>
           <button onClick={() => router.push(`/targets/${tid}/edit`)}>Edit Target</button>
           <button onClick={onDeleteTarget}>Delete Target</button>
           <button onClick={() => router.push(`/sessions/new?target_id=${tid}`)}>New Session</button>
