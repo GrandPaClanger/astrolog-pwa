@@ -241,8 +241,8 @@ export default function TargetDetailPage() {
           </div>
         </div>
 
+        {/* FIXED: single button row (no broken nested div) */}
         <div style={{ display: "flex", gap: 10 }}>
-          <div style={{ display: "flex", gap: 10 }}>
           <button onClick={() => router.push("/targets")}>Home</button>
           <button onClick={() => router.push(`/targets/${tid}/edit`)}>Edit Target</button>
           <button onClick={onDeleteTarget}>Delete Target</button>
