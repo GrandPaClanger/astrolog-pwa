@@ -114,7 +114,7 @@ export default function NewSessionPage() {
         if (!s.error) {
           const sd = s.data as any;
           setTargetId(Number(sd.target_id));
-          if (sd.session_date) setRunDate(sd.session_date);
+          if (sd.session_date) setRunDate(todayIso());
           setSessionDate(sd.session_date ?? todayIso());
           setLocationId(sd.location_id ?? null);
           setTelescopeId(sd.telescope_id ?? null);
