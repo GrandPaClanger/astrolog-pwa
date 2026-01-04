@@ -18,9 +18,9 @@ function fmtHMS(totalSec: number) {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s
+  return `${h.toString().padStart(2, "0")}:${m
     .toString()
-    .padStart(2, "0")}`;
+    .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
 export default function TargetsPage() {
@@ -44,20 +44,24 @@ export default function TargetsPage() {
     if (queryText) query = query.ilike("catalog_no", `%${queryText}%`);
 
     const { data, error } = await query;
+
     if (error) {
       console.error(error);
       setRows([]);
     } else {
       setRows((data as any) ?? []);
     }
+
     setLoading(false);
   }
 
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
       if (!cancelled) await loadTargets(q);
     })();
+
     return () => {
       cancelled = true;
     };
@@ -66,8 +70,10 @@ export default function TargetsPage() {
 
   const onSearch = () => {
     const params = new URLSearchParams(sp.toString());
+
     if (search.trim()) params.set("q", search.trim());
     else params.delete("q");
+
     const qs = params.toString();
     router.replace(qs ? `/targets?${qs}` : `/targets`);
   };
@@ -76,13 +82,16 @@ export default function TargetsPage() {
     const ok = confirm(`Delete target "${label}" AND all its sessions/panels?`);
     if (!ok) return;
 
-    const { error } = await supabase.from("target").delete().eq("target_id", targetId);
+    const { error } = await supabase
+      .from("target")
+      .delete()
+      .eq("target_id", targetId);
+
     if (error) {
       alert(error.message);
       return;
     }
 
-    // Reload with current query
     await loadTargets(q);
   }
 
@@ -105,13 +114,18 @@ export default function TargetsPage() {
               ].map((h) => (
                 <th
                   key={h}
-                  style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #ddd" }}
+                  style={{
+                    textAlign: "left",
+                    padding: 8,
+                    borderBottom: "1px solid #ddd",
+                  }}
                 >
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
+
           <tbody>
             {rows.map((r) => (
               <tr
@@ -119,10 +133,22 @@ export default function TargetsPage() {
                 style={{ cursor: "pointer" }}
                 onClick={() => router.push(`/targets/${r.target_id}`)}
               >
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.catalog_no}</td>
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.description ?? ""}</td>
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.start_date ?? ""}</td>
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.last_imaged ?? ""}</td>
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
+                  {r.catalog_no}
+                </td>
+
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
+                  {r.description ?? ""}
+                </td>
+
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
+                  {r.start_date ?? ""}
+                </td>
+
+                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
+                  {r.last_imaged ?? ""}
+                </td>
+
                 <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
                   {fmtHMS(r.total_integration_sec)}
                 </td>
@@ -130,21 +156,21 @@ export default function TargetsPage() {
                 <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
+                      style={{ padding: "6px 10px" }}
                       onClick={(e) => {
                         e.stopPropagation();
                         router.push(`/targets/${r.target_id}/edit`);
                       }}
-                      style={{ padding: "6px 10px" }}
                     >
                       Edit
                     </button>
 
                     <button
+                      style={{ padding: "6px 10px" }}
                       onClick={(e) => {
                         e.stopPropagation();
                         onDelete(r.target_id, r.catalog_no);
                       }}
-                      style={{ padding: "6px 10px" }}
                     >
                       Delete
                     </button>
@@ -160,13 +186,20 @@ export default function TargetsPage() {
         </p>
       </div>
     );
-  }, [loading, rows, router, q]);
+  }, [loading, rows, q, router]);
 
   return (
     <main style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
       <h1>Targets</h1>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "12px 0" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          margin: "12px 0",
+        }}
+      >
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -174,10 +207,15 @@ export default function TargetsPage() {
           style={{ flex: 1, padding: 8 }}
           onKeyDown={(e) => e.key === "Enter" && onSearch()}
         />
-        <button onClick={onSearch} style={{ padding: "8px 12px" }}>
+
+        <button style={{ padding: "8px 12px" }} onClick={onSearch}>
           Search
         </button>
-        <button onClick={() => router.push("/sessions/new")} style={{ padding: "8px 12px" }}>
+
+        <button
+          style={{ padding: "8px 12px" }}
+          onClick={() => router.push("/sessions/new")}
+        >
           New Session
         </button>
       </div>

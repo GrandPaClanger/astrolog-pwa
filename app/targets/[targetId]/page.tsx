@@ -1,245 +1,197 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type SessionRow = {
+export const dynamic = "force-dynamic";
+
+type Session = {
+  session_id: number;
+  session_start: string | null;
+  notes: string | null;
+  telescope_name?: string | null;
+};
+
+type ImageRun = {
+  image_run_id: number;
   session_id: number;
   session_date: string | null;
-  started_at: string | null;
-  ended_at: string | null;
-  telescope_name: string | null;
-  mount_name: string | null;
-  camera_name: string | null;
-  location_name: string | null;
-  total_integration_sec: number;
+  panel_name: string | null;
   notes: string | null;
 };
 
-type RunRow = {
-  image_run_id: number;
-  session_id: number;
-  run_date: string;
-  panel_no: number | null;
-  panel_name: string;
-  total_panel_sec: number;
-  notes: string | null;
+type Target = {
+  target_id: number;
+  catalog_no: string;
+  description: string | null;
 };
-
-type FilterLineRow = {
-  run_filter_id: number;
-  image_run_id: number;
-  exposures: number;
-  exposure_sec: number;
-  filter_id: number;
-  notes: string | null;
-  filter: { name: string } | null;
-};
-
-function fmtHMS(totalSec: number) {
-  const sec = Math.max(0, Math.floor(totalSec || 0));
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s
-    .toString()
-    .padStart(2, "0")}`;
-}
 
 export default function TargetDetailPage() {
   const { targetId } = useParams<{ targetId: string }>();
+  const tid = Number(targetId);
   const router = useRouter();
 
-  const [target, setTarget] = useState<any>(null);
-  const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [runs, setRuns] = useState<RunRow[]>([]);
-  const [lines, setLines] = useState<FilterLineRow[]>([]);
+  const [target, setTarget] = useState<Target | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [runs, setRuns] = useState<ImageRun[]>([]);
   const [loading, setLoading] = useState(true);
 
+  async function load() {
+    setLoading(true);
+
+    const t = await supabase
+      .from("target")
+      .select("target_id,catalog_no,description")
+      .eq("target_id", tid)
+      .single();
+
+    if (t.error) {
+      alert(t.error.message);
+      setLoading(false);
+      return;
+    }
+    setTarget(t.data as Target);
+
+    const s = await supabase
+      .from("session")
+      .select("session_id,session_start,notes")
+      .eq("target_id", tid)
+      .order("session_start", { ascending: false, nullsFirst: false });
+
+    if (s.error) alert(s.error.message);
+    setSessions((s.data as any) ?? []);
+
+    const sessIds = ((s.data as any) ?? []).map((x: any) => x.session_id);
+    if (sessIds.length) {
+      const r = await supabase
+        .from("image_run")
+        .select("image_run_id,session_id,session_date,panel_name,notes")
+        .in("session_id", sessIds)
+        .order("session_date", { ascending: false, nullsFirst: false });
+
+      if (r.error) alert(r.error.message);
+      setRuns((r.data as any) ?? []);
+    } else {
+      setRuns([]);
+    }
+
+    setLoading(false);
+  }
+
   useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-
-      const tid = Number(targetId);
-
-      const tRes = await supabase.from("target").select("*").eq("target_id", tid).single();
-      if (tRes.error) console.error(tRes.error);
-
-      const sRes = await supabase
-        .from("v_session_totals")
-        .select("*")
-        .eq("target_id", tid)
-        .order("session_date", { ascending: false, nullsFirst: false })
-        .order("started_at", { ascending: false, nullsFirst: false });
-
-      if (sRes.error) console.error(sRes.error);
-
-      const sessionIds = (sRes.data ?? []).map((s: any) => s.session_id);
-
-      let rData: any[] = [];
-      if (sessionIds.length) {
-        const rRes = await supabase
-          .from("v_image_run_totals")
-          .select("*")
-          .in("session_id", sessionIds)
-          .order("run_date", { ascending: false })
-          .order("panel_no", { ascending: true });
-
-        if (rRes.error) console.error(rRes.error);
-        rData = (rRes.data as any[]) ?? [];
-      }
-
-      const runIds = rData.map((r) => r.image_run_id);
-
-      let lData: any[] = [];
-      if (runIds.length) {
-        const lRes = await supabase
-          .from("run_filter")
-          .select("run_filter_id,image_run_id,exposures,exposure_sec,filter_id,notes,filter(name)")
-          .in("image_run_id", runIds)
-          .order("filter_id", { ascending: true });
-
-        if (lRes.error) console.error(lRes.error);
-        lData = (lRes.data as any[]) ?? [];
-      }
-
-      if (!cancelled) {
-        setTarget(tRes.data ?? null);
-        setSessions((sRes.data as any) ?? []);
-        setRuns((rData as any) ?? []);
-        setLines((lData as any) ?? []);
-        setLoading(false);
-      }
-    }
-
     load();
-    return () => {
-      cancelled = true;
-    };
-  }, [targetId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tid]);
 
-  const runsBySession = useMemo(() => {
-    const map = new Map<number, RunRow[]>();
-    for (const r of runs) {
-      const arr = map.get(r.session_id) ?? [];
-      arr.push(r);
-      map.set(r.session_id, arr);
-    }
-    return map;
-  }, [runs]);
+  async function deleteTarget() {
+    if (!target) return;
+    const ok = confirm(`Delete target "${target.catalog_no}" AND all sessions/runs?`);
+    if (!ok) return;
 
-  const linesByRun = useMemo(() => {
-    const map = new Map<number, FilterLineRow[]>();
-    for (const l of lines) {
-      const arr = map.get(l.image_run_id) ?? [];
-      arr.push(l);
-      map.set(l.image_run_id, arr);
-    }
-    return map;
-  }, [lines]);
+    const { error } = await supabase.from("target").delete().eq("target_id", tid);
+    if (error) return alert(error.message);
+
+    router.push("/targets");
+  }
+
+  async function deleteSession(sessionId: number) {
+    const ok = confirm(`Delete this session AND all its image runs?`);
+    if (!ok) return;
+
+    const { error } = await supabase.from("session").delete().eq("session_id", sessionId);
+    if (error) return alert(error.message);
+
+    await load();
+  }
+
+  async function deleteRun(runId: number) {
+    const ok = confirm(`Delete this image run?`);
+    if (!ok) return;
+
+    const { error } = await supabase.from("image_run").delete().eq("image_run_id", runId);
+    if (error) return alert(error.message);
+
+    await load();
+  }
 
   if (loading) return <main style={{ padding: 16 }}>Loading…</main>;
-  if (!target) return <main style={{ padding: 16 }}>Target not found.</main>;
+  if (!target) return <main style={{ padding: 16 }}>Not found</main>;
 
   return (
     <main style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
-      <button onClick={() => router.push("/targets")} style={{ marginBottom: 12 }}>
-        ← Back
-      </button>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ margin: 0 }}>{target.catalog_no}</h1>
+          <div style={{ opacity: 0.8 }}>{target.description ?? ""}</div>
+        </div>
 
-      <h1>
-        {target.catalog_no} {target.description ? `— ${target.description}` : ""}
-      </h1>
-
-      <div style={{ margin: "8px 0 16px" }}>
-        <button onClick={() => router.push(`/sessions/new?target_id=${target.target_id}`)}>
-          New session for this target
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => router.push(`/targets/${tid}/edit`)}>Edit Target</button>
+          <button onClick={deleteTarget}>Delete Target</button>
+          <button onClick={() => router.push(`/sessions/new?target_id=${tid}`)}>New Session</button>
+        </div>
       </div>
 
-      {!sessions.length ? (
-        <p>No sessions yet.</p>
-      ) : (
-        sessions.map((s) => {
-          const sruns = runsBySession.get(s.session_id) ?? [];
-          return (
-            <section
-              key={s.session_id}
-              style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}
-            >
-              <h2 style={{ margin: 0 }}>
-                Session {s.session_date ?? (s.started_at ? s.started_at.slice(0, 10) : "")}
-              </h2>
+      <h2 style={{ marginTop: 18 }}>Sessions</h2>
 
-              <p style={{ margin: "6px 0" }}>
-                <strong>Telescope:</strong> {s.telescope_name ?? "—"} &nbsp;|&nbsp;
-                <strong>Mount:</strong> {s.mount_name ?? "—"} &nbsp;|&nbsp;
-                <strong>Camera:</strong> {s.camera_name ?? "—"} &nbsp;|&nbsp;
-                <strong>Location:</strong> {s.location_name ?? "—"}
-              </p>
+      {!sessions.length && <p>No sessions yet.</p>}
 
-              <p style={{ margin: "6px 0" }}>
-                <strong>Total integration:</strong> {fmtHMS(s.total_integration_sec)}
-              </p>
+      {sessions.map((s) => {
+        const sessionRuns = runs.filter((r) => r.session_id === s.session_id);
 
-              {s.notes ? <p style={{ margin: "6px 0" }}>{s.notes}</p> : null}
+        return (
+          <div key={s.session_id} style={{ border: "1px solid #222", borderRadius: 10, padding: 12, marginTop: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>
+                  Session #{s.session_id} {s.session_start ? `— ${s.session_start}` : ""}
+                </div>
+                {s.notes && <div style={{ opacity: 0.85, marginTop: 4 }}>{s.notes}</div>}
+              </div>
 
-              {sruns.map((r) => {
-                const rlines = linesByRun.get(r.image_run_id) ?? [];
-                return (
-                  <div
-                    key={r.image_run_id}
-                    style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #ddd" }}
-                  >
-                    <h3 style={{ margin: "0 0 6px" }}>
-                      {r.run_date} — {r.panel_name}
-                    </h3>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => router.push(`/sessions/edit?session_id=${s.session_id}`)}>
+                  Edit Session
+                </button>
+                <button onClick={() => router.push(`/sessions/new?target_id=${tid}&session_id=${s.session_id}`)}>
+                  Add Image Run
+                </button>
+                <button onClick={() => deleteSession(s.session_id)}>
+                  Delete Session
+                </button>
+              </div>
+            </div>
 
-                    <p style={{ margin: "6px 0" }}>
-                      <strong>Panel integration:</strong> {fmtHMS(r.total_panel_sec)}
-                    </p>
+            <div style={{ marginTop: 10 }}>
+              <b>Image runs</b>
+              {!sessionRuns.length && <div style={{ opacity: 0.8, marginTop: 6 }}>None yet.</div>}
 
-                    {rlines.length ? (
-                      <div style={{ overflowX: "auto" }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                          <thead>
-                            <tr>
-                              {["Filter", "Exposures", "Exposure (sec)", "Filter Total"].map((h) => (
-                                <th key={h} style={{ textAlign: "left", padding: 6, borderBottom: "1px solid #eee" }}>
-                                  {h}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rlines.map((l) => (
-                              <tr key={l.run_filter_id}>
-                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>
-                                  {l.filter?.name ?? "—"}
-                                </td>
-                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{l.exposures}</td>
-                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{l.exposure_sec}</td>
-                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>
-                                  {fmtHMS(l.exposures * l.exposure_sec)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p>No filter lines.</p>
-                    )}
+              {sessionRuns.map((r) => (
+                <div
+                  key={r.image_run_id}
+                  style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8, paddingTop: 8, borderTop: "1px solid #222" }}
+                >
+                  <div>
+                    <div>
+                      {r.session_date ?? ""} {r.panel_name ? `— ${r.panel_name}` : ""}
+                    </div>
+                    {r.notes && <div style={{ opacity: 0.85 }}>{r.notes}</div>}
                   </div>
-                );
-              })}
-            </section>
-          );
-        })
-      )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => router.push(`/image-runs/edit?image_run_id=${r.image_run_id}`)}>
+                      Edit Run
+                    </button>
+                    <button onClick={() => deleteRun(r.image_run_id)}>
+                      Delete Run
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </main>
   );
 }
