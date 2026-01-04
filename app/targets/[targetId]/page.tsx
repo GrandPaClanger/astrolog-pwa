@@ -10,13 +10,13 @@ type Session = {
   session_id: number;
   session_date: string | null;
   notes: string | null;
-  telescope_name?: string | null;
 };
 
 type ImageRun = {
   image_run_id: number;
   session_id: number;
-  session_date: string | null;
+  run_date: string | null;
+  panel_no: number | null;
   panel_name: string | null;
   notes: string | null;
 };
@@ -60,18 +60,23 @@ export default function TargetDetailPage() {
       .order("session_date", { ascending: false, nullsFirst: false });
 
     if (s.error) alert(s.error.message);
-    setSessions((s.data as any) ?? []);
 
-    const sessIds = ((s.data as any) ?? []).map((x: any) => x.session_id);
+    const sessionRows = ((s.data as any) ?? []) as Session[];
+    setSessions(sessionRows);
+
+    const sessIds = sessionRows.map((x) => x.session_id);
+
     if (sessIds.length) {
       const r = await supabase
         .from("image_run")
-        .select("image_run_id,session_id,session_date,panel_name,notes")
+        .select("image_run_id,session_id,run_date,panel_no,panel_name,notes")
         .in("session_id", sessIds)
-        .order("session_date", { ascending: false, nullsFirst: false });
+        .order("run_date", { ascending: false, nullsFirst: false })
+        .order("panel_no", { ascending: true, nullsFirst: false })
+        .order("image_run_id", { ascending: false });
 
       if (r.error) alert(r.error.message);
-      setRuns((r.data as any) ?? []);
+      setRuns(((r.data as any) ?? []) as ImageRun[]);
     } else {
       setRuns([]);
     }
@@ -141,7 +146,10 @@ export default function TargetDetailPage() {
         const sessionRuns = runs.filter((r) => r.session_id === s.session_id);
 
         return (
-          <div key={s.session_id} style={{ border: "1px solid #222", borderRadius: 10, padding: 12, marginTop: 10 }}>
+          <div
+            key={s.session_id}
+            style={{ border: "1px solid #222", borderRadius: 10, padding: 12, marginTop: 10 }}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
               <div>
                 <div style={{ fontWeight: 600 }}>
@@ -157,9 +165,7 @@ export default function TargetDetailPage() {
                 <button onClick={() => router.push(`/sessions/new?target_id=${tid}&session_id=${s.session_id}`)}>
                   Add Image Run
                 </button>
-                <button onClick={() => deleteSession(s.session_id)}>
-                  Delete Session
-                </button>
+                <button onClick={() => deleteSession(s.session_id)}>Delete Session</button>
               </div>
             </div>
 
@@ -170,21 +176,29 @@ export default function TargetDetailPage() {
               {sessionRuns.map((r) => (
                 <div
                   key={r.image_run_id}
-                  style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8, paddingTop: 8, borderTop: "1px solid #222" }}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    marginTop: 8,
+                    paddingTop: 8,
+                    borderTop: "1px solid #222",
+                  }}
                 >
                   <div>
                     <div>
-                      {r.session_date ?? ""} {r.panel_name ? `— ${r.panel_name}` : ""}
+                      {(r.run_date ?? "")}
+                      {typeof r.panel_no === "number" ? ` — Panel ${r.panel_no}` : ""}
+                      {r.panel_name ? ` — ${r.panel_name}` : ""}
                     </div>
                     {r.notes && <div style={{ opacity: 0.85 }}>{r.notes}</div>}
                   </div>
+
                   <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={() => router.push(`/image-runs/edit?image_run_id=${r.image_run_id}`)}>
                       Edit Run
                     </button>
-                    <button onClick={() => deleteRun(r.image_run_id)}>
-                      Delete Run
-                    </button>
+                    <button onClick={() => deleteRun(r.image_run_id)}>Delete Run</button>
                   </div>
                 </div>
               ))}
