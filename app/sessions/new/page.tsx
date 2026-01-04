@@ -91,7 +91,8 @@ export default function NewSessionPage() {
         supabase.from("telescope").select("telescope_id,name").order("name"),
         supabase.from("mount").select("mount_id,name").order("name"),
         supabase.from("camera").select("camera_id,name").order("name"),
-        supabase.from("filter").select("filter_id,name").order("name"),
+        // IMPORTANT: order by filter_id
+        supabase.from("filter").select("filter_id,name").order("filter_id", { ascending: true }),
       ]);
 
       if (!t.error) setTargets((t.data as any) ?? []);
@@ -113,8 +114,7 @@ export default function NewSessionPage() {
         if (!s.error) {
           const sd = s.data as any;
           setTargetId(Number(sd.target_id));
-          if (sd.session_date) setRunDate(sd.session_date); // sensible default
-          // (We don't show these header fields when adding a run, but we keep them consistent.)
+          if (sd.session_date) setRunDate(sd.session_date);
           setSessionDate(sd.session_date ?? todayIso());
           setLocationId(sd.location_id ?? null);
           setTelescopeId(sd.telescope_id ?? null);
@@ -136,6 +136,7 @@ export default function NewSessionPage() {
     setLines((prev) => prev.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
   }
 
+  // Only adds when the button is pressed (no auto-add anywhere)
   function addLineCopyPrev() {
     setLines((prev) => {
       const last = prev[prev.length - 1];
@@ -148,8 +149,8 @@ export default function NewSessionPage() {
   }
 
   async function ensureTargetId(): Promise<number> {
-    // If user typed a new target, create it (only when not adding to existing session)
     const cat = newCatalogNo.trim();
+
     if (!existingSessionId && cat) {
       const ins = await supabase
         .from("target")
@@ -170,7 +171,6 @@ export default function NewSessionPage() {
 
   async function save() {
     try {
-      // validate filter lines
       for (const l of lines) {
         if (!l.filter_id) return alert("Each filter line needs a filter selected.");
       }
