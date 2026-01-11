@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -19,6 +19,8 @@ type FilterLine = {
   bin: number | null;
   notes: string | null;
 };
+
+type CatalogItem = { catalog_no: string; description: string | null };
 
 const PANEL_OPTIONS = Array.from({ length: 20 }, (_, i) => i + 1); // 1..20
 
@@ -42,6 +44,181 @@ function fmtHMS(totalSec: number) {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s
     .toString()
     .padStart(2, "0")}`;
+}
+
+function MagnifierIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      style={{ opacity: 0.75 }}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M10.5 18.5C14.6421 18.5 18 15.1421 18 11C18 6.85786 14.6421 3.5 10.5 3.5C6.35786 3.5 3 6.85786 3 11C3 15.1421 6.35786 18.5 10.5 18.5Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path d="M21 21L16.65 16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ObjectCatalogSearch(props: {
+  onPick: (item: { catalog_no: string; description: string }) => void;
+}) {
+  const { onPick } = props;
+
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<CatalogItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const boxRef = useRef<HTMLDivElement | null>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (!boxRef.current) return;
+      if (!boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  const query = useMemo(() => q.trim(), [q]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handle = setTimeout(async () => {
+      if (query.length < 2) {
+        setItems([]);
+        return;
+      }
+
+      setLoading(true);
+      const like = `%${query}%`;
+
+      const { data, error } = await supabase
+        .from("object_catalog")
+        .select("catalog_no,description")
+        .or(`catalog_no.ilike.${like},description.ilike.${like}`)
+        .order("catalog_no", { ascending: true })
+        .limit(25);
+
+      setLoading(false);
+
+      if (error) {
+        console.error(error);
+        setItems([]);
+        return;
+      }
+
+      setItems((data ?? []) as CatalogItem[]);
+    }, 250);
+
+    return () => clearTimeout(handle);
+  }, [query, open]);
+
+  function pick(it: CatalogItem) {
+    onPick({
+      catalog_no: (it.catalog_no ?? "").trim(),
+      description: (it.description ?? "").trim(),
+    });
+    setQ("");
+    setOpen(false);
+  }
+
+  return (
+    <div ref={boxRef} style={{ position: "relative" }}>
+      <label>Search Object Catalog</label>
+
+      <div style={{ position: "relative", margin: "6px 0 12px" }}>
+        <div
+          style={{
+            position: "absolute",
+            left: 10,
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: "white",
+          }}
+        >
+          <MagnifierIcon />
+        </div>
+
+        <input
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setOpen(false);
+            if (e.key === "Enter" && items.length === 1) pick(items[0]);
+          }}
+          placeholder="Type to search (e.g. M57, IC 2359, Thor...)"
+          style={{
+            width: "100%",
+            padding: "10px 12px 10px 38px",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.2)",
+            background: "rgba(0,0,0,0.35)",
+            color: "white",
+          }}
+        />
+      </div>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 50,
+            width: "100%",
+            marginTop: -6,
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.2)",
+            background: "rgba(0,0,0,0.95)",
+            maxHeight: 320,
+            overflow: "auto",
+          }}
+        >
+          {query.length < 2 ? (
+            <div style={{ padding: 12, opacity: 0.8 }}>Type 2+ characters…</div>
+          ) : loading ? (
+            <div style={{ padding: 12, opacity: 0.8 }}>Searching…</div>
+          ) : items.length === 0 ? (
+            <div style={{ padding: 12, opacity: 0.8 }}>No matches.</div>
+          ) : (
+            items.map((it) => (
+              <button
+                key={it.catalog_no}
+                type="button"
+                onClick={() => pick(it)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: 12,
+                  border: 0,
+                  background: "transparent",
+                  color: "white",
+                  cursor: "pointer",
+                  borderBottom: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <div style={{ fontWeight: 700 }}>{it.catalog_no}</div>
+                <div style={{ opacity: 0.85, fontSize: 13 }}>{it.description}</div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function NewSessionPage() {
@@ -245,7 +422,15 @@ export default function NewSessionPage() {
       <select
         value={targetId}
         disabled={!!existingSessionId}
-        onChange={(e) => setTargetId(Number(e.target.value))}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setTargetId(v);
+          if (v) {
+            // If user picks an existing target, clear "create new" fields to avoid accidental inserts
+            setNewCatalogNo("");
+            setNewDescription("");
+          }
+        }}
         style={{ width: "100%", margin: "6px 0 12px" }}
       >
         <option value={0}>Select…</option>
@@ -258,12 +443,26 @@ export default function NewSessionPage() {
 
       {!existingSessionId && (
         <>
+          {/* NEW: Object catalog predictive search */}
+          <ObjectCatalogSearch
+            onPick={(it) => {
+              setNewCatalogNo(it.catalog_no);
+              setNewDescription(it.description);
+              // Ensure we don't accidentally save against an existing selected target
+              setTargetId(0);
+            }}
+          />
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <label>Or create new (Catalog No)</label>
               <input
                 value={newCatalogNo}
-                onChange={(e) => setNewCatalogNo(e.target.value)}
+                onChange={(e) => {
+                  setNewCatalogNo(e.target.value);
+                  // If user starts typing a new target, ensure we don't keep an existing selection
+                  if (e.target.value.trim()) setTargetId(0);
+                }}
                 style={{ width: "100%", margin: "6px 0 12px" }}
               />
             </div>
