@@ -49,7 +49,7 @@ export default function TargetsPage() {
     let query = supabase
       .from("v_target_catalog")
       .select("*")
-      .order("last_imaged", { ascending: false, nullsFirst: false })
+      .order("start_date", { ascending: true, nullsFirst: false })
       .order("catalog_no", { ascending: true });
 
     if (queryText) query = query.ilike("catalog_no", `%${queryText}%`);
