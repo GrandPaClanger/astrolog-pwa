@@ -10,31 +10,18 @@ type Config = {
   key: TableKey;
   title: string;
   pk: string;
-  editable: string[]; // fields user can edit
+  editable: string[];
   orderBy: { col: string; asc: boolean };
-  searchable?: boolean; // show search box (used for object_catalog)
+  searchable?: boolean;
 };
 
 const CONFIGS: Config[] = [
   { key: "camera", title: "Camera", pk: "camera_id", editable: ["name"], orderBy: { col: "name", asc: true } },
-  {
-    key: "filter",
-    title: "Filter",
-    pk: "filter_id",
-    editable: ["name", "sort_order"],
-    orderBy: { col: "sort_order", asc: true },
-  },
+  { key: "filter", title: "Filter", pk: "filter_id", editable: ["name", "sort_order"], orderBy: { col: "sort_order", asc: true } },
   { key: "location", title: "Location", pk: "location_id", editable: ["name"], orderBy: { col: "name", asc: true } },
   { key: "mount", title: "Mount", pk: "mount_id", editable: ["name"], orderBy: { col: "name", asc: true } },
   { key: "telescope", title: "Telescope", pk: "telescope_id", editable: ["name", "notes"], orderBy: { col: "name", asc: true } },
-  {
-    key: "object_catalog",
-    title: "Object catalog",
-    pk: "object_id",
-    editable: ["catalog_no", "description"],
-    orderBy: { col: "catalog_no", asc: true },
-    searchable: true,
-  },
+  { key: "object_catalog", title: "Object catalog", pk: "object_id", editable: ["catalog_no", "description"], orderBy: { col: "catalog_no", asc: true }, searchable: true },
 ];
 
 function inputStyle(): React.CSSProperties {
@@ -58,14 +45,10 @@ export default function MaintenancePage() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // object_catalog search
   const [q, setQ] = useState("");
-
-  // add row draft
   const [draft, setDraft] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    // Ensure person exists for tables that use triggers / RLS
     void (async () => {
       await supabase.rpc("ensure_person");
     })();
@@ -81,9 +64,7 @@ export default function MaintenancePage() {
       query = query.or(`catalog_no.ilike.${like},description.ilike.${like}`);
     }
 
-    const { data, error } = await query
-      .order(cfg.orderBy.col, { ascending: cfg.orderBy.asc })
-      .limit(500);
+    const { data, error } = await query.order(cfg.orderBy.col, { ascending: cfg.orderBy.asc }).limit(500);
 
     setLoading(false);
 
@@ -97,7 +78,6 @@ export default function MaintenancePage() {
   }
 
   useEffect(() => {
-    // reset state on table change
     setRows([]);
     setDraft({});
     setQ("");
@@ -117,7 +97,6 @@ export default function MaintenancePage() {
       const payload: Record<string, any> = {};
       for (const col of cfg.editable) payload[col] = draft[col] ?? null;
 
-      // basic cleaning
       for (const k of Object.keys(payload)) {
         if (typeof payload[k] === "string") payload[k] = payload[k].trim() || null;
       }
@@ -144,7 +123,6 @@ export default function MaintenancePage() {
       }
 
       const { error } = await sb.from(cfg.key).update(payload).eq(cfg.pk, pkValue);
-
       if (error) return alert(error.message);
 
       await load();
@@ -220,11 +198,11 @@ export default function MaintenancePage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
-                {cfg.pk}
-              </th>
               {cfg.editable.map((c) => (
-                <th key={c} style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
+                <th
+                  key={c}
+                  style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }}
+                >
                   {c}
                 </th>
               ))}
@@ -233,7 +211,13 @@ export default function MaintenancePage() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <RowEditor key={String(r[cfg.pk])} row={r} cfg={cfg} onSave={saveRow} />
+              <RowEditor
+                key={String(r[cfg.pk])}
+                row={r}
+                pkValue={r[cfg.pk]}
+                cfg={cfg}
+                onSave={saveRow}
+              />
             ))}
           </tbody>
         </table>
@@ -242,9 +226,13 @@ export default function MaintenancePage() {
   );
 }
 
-function RowEditor(props: { row: any; cfg: Config; onSave: (pkValue: any, patch: Record<string, any>) => Promise<void> }) {
-  const { row, cfg, onSave } = props;
-  const pkValue = row[cfg.pk];
+function RowEditor(props: {
+  row: any;
+  pkValue: any;
+  cfg: Config;
+  onSave: (pkValue: any, patch: Record<string, any>) => Promise<void>;
+}) {
+  const { row, pkValue, cfg, onSave } = props;
 
   const [edit, setEdit] = useState<Record<string, any>>(() => {
     const x: Record<string, any> = {};
@@ -260,8 +248,6 @@ function RowEditor(props: { row: any; cfg: Config; onSave: (pkValue: any, patch:
 
   return (
     <tr>
-      <td style={{ padding: 8, borderBottom: "1px solid rgba(255,255,255,0.08)", opacity: 0.85 }}>{String(pkValue)}</td>
-
       {cfg.editable.map((c) => (
         <td key={c} style={{ padding: 8, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <input
