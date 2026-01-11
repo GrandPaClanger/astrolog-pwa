@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Search } from "lucide-react";
 
 type CatalogItem = {
   catalog_no: string;
@@ -15,6 +14,31 @@ type Props = {
   onPick: (item: { catalog_no: string; description: string }) => void;
   placeholder?: string;
 };
+
+function MagnifierIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      style={{ opacity: 0.75 }}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M10.5 18.5C14.6421 18.5 18 15.1421 18 11C18 6.85786 14.6421 3.5 10.5 3.5C6.35786 3.5 3 6.85786 3 11C3 15.1421 6.35786 18.5 10.5 18.5Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M21 21L16.65 16.65"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 export default function ObjectCatalogSearch({
   valueCatalogNo,
@@ -29,7 +53,6 @@ export default function ObjectCatalogSearch({
 
   const boxRef = useRef<HTMLDivElement | null>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (!boxRef.current) return;
@@ -69,14 +92,16 @@ export default function ObjectCatalogSearch({
       }
 
       setItems((data ?? []) as CatalogItem[]);
-    }, 250); // debounce
+    }, 250);
 
     return () => clearTimeout(handle);
   }, [query, open]);
 
   const pick = (it: CatalogItem) => {
-    const description = (it.description ?? "").trim();
-    onPick({ catalog_no: it.catalog_no.trim(), description });
+    onPick({
+      catalog_no: (it.catalog_no ?? "").trim(),
+      description: (it.description ?? "").trim(),
+    });
     setQ("");
     setOpen(false);
   };
@@ -86,16 +111,17 @@ export default function ObjectCatalogSearch({
       <label style={{ display: "block", marginBottom: 6 }}>Catalog Search</label>
 
       <div style={{ position: "relative" }}>
-        <Search
-          size={18}
+        <div
           style={{
             position: "absolute",
             left: 10,
             top: "50%",
             transform: "translateY(-50%)",
-            opacity: 0.7,
           }}
-        />
+        >
+          <MagnifierIcon />
+        </div>
+
         <input
           value={q}
           onChange={(e) => {
@@ -115,7 +141,6 @@ export default function ObjectCatalogSearch({
         />
       </div>
 
-      {/* Selected preview (optional) */}
       {(valueCatalogNo || valueDescription) && (
         <div style={{ marginTop: 8, opacity: 0.9, fontSize: 13 }}>
           <div>
@@ -140,9 +165,7 @@ export default function ObjectCatalogSearch({
           }}
         >
           {query.length < 2 ? (
-            <div style={{ padding: 12, opacity: 0.8 }}>
-              Type 2+ characters…
-            </div>
+            <div style={{ padding: 12, opacity: 0.8 }}>Type 2+ characters…</div>
           ) : loading ? (
             <div style={{ padding: 12, opacity: 0.8 }}>Searching…</div>
           ) : items.length === 0 ? (
@@ -166,9 +189,7 @@ export default function ObjectCatalogSearch({
                 }}
               >
                 <div style={{ fontWeight: 700 }}>{it.catalog_no}</div>
-                <div style={{ opacity: 0.85, fontSize: 13 }}>
-                  {it.description}
-                </div>
+                <div style={{ opacity: 0.85, fontSize: 13 }}>{it.description}</div>
               </button>
             ))
           )}
