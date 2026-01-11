@@ -10,18 +10,31 @@ type Config = {
   key: TableKey;
   title: string;
   pk: string;
-  editable: string[];      // fields user can edit
+  editable: string[]; // fields user can edit
   orderBy: { col: string; asc: boolean };
-  searchable?: boolean;    // show search box (used for object_catalog)
+  searchable?: boolean; // show search box (used for object_catalog)
 };
 
 const CONFIGS: Config[] = [
   { key: "camera", title: "Camera", pk: "camera_id", editable: ["name"], orderBy: { col: "name", asc: true } },
-  { key: "filter", title: "Filter", pk: "filter_id", editable: ["name", "sort_order"], orderBy: { col: "sort_order", asc: true } },
+  {
+    key: "filter",
+    title: "Filter",
+    pk: "filter_id",
+    editable: ["name", "sort_order"],
+    orderBy: { col: "sort_order", asc: true },
+  },
   { key: "location", title: "Location", pk: "location_id", editable: ["name"], orderBy: { col: "name", asc: true } },
   { key: "mount", title: "Mount", pk: "mount_id", editable: ["name"], orderBy: { col: "name", asc: true } },
   { key: "telescope", title: "Telescope", pk: "telescope_id", editable: ["name", "notes"], orderBy: { col: "name", asc: true } },
-  { key: "object_catalog", title: "Object catalog", pk: "object_id", editable: ["catalog_no", "description"], orderBy: { col: "catalog_no", asc: true }, searchable: true },
+  {
+    key: "object_catalog",
+    title: "Object catalog",
+    pk: "object_id",
+    editable: ["catalog_no", "description"],
+    orderBy: { col: "catalog_no", asc: true },
+    searchable: true,
+  },
 ];
 
 function inputStyle(): React.CSSProperties {
@@ -36,6 +49,9 @@ function inputStyle(): React.CSSProperties {
 }
 
 export default function MaintenancePage() {
+  // IMPORTANT: avoid TS "excessively deep" inference on dynamic table names
+  const sb = supabase as any;
+
   const [table, setTable] = useState<TableKey>("camera");
   const cfg = useMemo(() => CONFIGS.find((c) => c.key === table)!, [table]);
 
@@ -49,21 +65,25 @@ export default function MaintenancePage() {
   const [draft, setDraft] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    // Ensure person exists for tables that use triggers / RLS (safe to call every time)
-    supabase.rpc("ensure_person").catch(() => {});
+    // Ensure person exists for tables that use triggers / RLS
+    void (async () => {
+      await supabase.rpc("ensure_person");
+    })();
   }, []);
 
   async function load() {
     setLoading(true);
 
-    let query = supabase.from(cfg.key).select("*");
+    let query = sb.from(cfg.key).select("*");
 
     if (cfg.key === "object_catalog" && q.trim().length >= 2) {
       const like = `%${q.trim()}%`;
       query = query.or(`catalog_no.ilike.${like},description.ilike.${like}`);
     }
 
-    const { data, error } = await query.order(cfg.orderBy.col as any, { ascending: cfg.orderBy.asc }).limit(500);
+    const { data, error } = await query
+      .order(cfg.orderBy.col, { ascending: cfg.orderBy.asc })
+      .limit(500);
 
     setLoading(false);
 
@@ -102,7 +122,7 @@ export default function MaintenancePage() {
         if (typeof payload[k] === "string") payload[k] = payload[k].trim() || null;
       }
 
-      const { error } = await supabase.from(cfg.key).insert(payload);
+      const { error } = await sb.from(cfg.key).insert(payload);
       if (error) return alert(error.message);
 
       setDraft({});
@@ -123,10 +143,7 @@ export default function MaintenancePage() {
         if (typeof payload[k] === "string") payload[k] = payload[k].trim() || null;
       }
 
-      const { error } = await supabase
-        .from(cfg.key)
-        .update(payload)
-        .eq(cfg.pk as any, pkValue);
+      const { error } = await sb.from(cfg.key).update(payload).eq(cfg.pk, pkValue);
 
       if (error) return alert(error.message);
 
@@ -148,11 +165,7 @@ export default function MaintenancePage() {
       <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12, marginBottom: 12 }}>
         <div>
           <label style={{ display: "block", marginBottom: 6 }}>Table</label>
-          <select
-            value={table}
-            onChange={(e) => setTable(e.target.value as TableKey)}
-            style={{ ...inputStyle() }}
-          >
+          <select value={table} onChange={(e) => setTable(e.target.value as TableKey)} style={{ ...inputStyle() }}>
             {CONFIGS.map((c) => (
               <option key={c.key} value={c.key}>
                 {c.title}
@@ -178,9 +191,7 @@ export default function MaintenancePage() {
 
       <h2 style={{ marginTop: 0 }}>{cfg.title}</h2>
 
-      <div style={{ marginBottom: 12, opacity: 0.85 }}>
-        {loading ? "Loading…" : `${rows.length} rows`}
-      </div>
+      <div style={{ marginBottom: 12, opacity: 0.85 }}>{loading ? "Loading…" : `${rows.length} rows`}</div>
 
       {/* Add row */}
       <div style={{ padding: 12, borderRadius: 12, border: "1px solid rgba(255,255,255,0.15)", marginBottom: 16 }}>
@@ -209,7 +220,9 @@ export default function MaintenancePage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>{cfg.pk}</th>
+              <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
+                {cfg.pk}
+              </th>
               {cfg.editable.map((c) => (
                 <th key={c} style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
                   {c}

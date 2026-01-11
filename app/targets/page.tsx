@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 type TargetRow = {
@@ -198,6 +199,10 @@ export default function TargetsPage() {
         <button style={{ padding: "8px 12px" }} onClick={() => router.push("/sessions/new")}>
           New Session
         </button>
+
+        <Link href="/maintenance" style={{ padding: "8px 12px", display: "inline-block" }}>
+          Maintenance
+        </Link>
       </div>
 
       {body}
