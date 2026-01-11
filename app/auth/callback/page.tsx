@@ -1,19 +1,18 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-export const dynamic = "force-dynamic";
 
+export const dynamic = "force-dynamic";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-  const sp = useSearchParams();
 
   useEffect(() => {
     void (async () => {
       // 1) Newer PKCE flow: /auth/callback?code=...
-      const code = sp.get("code");
+      const code = new URLSearchParams(window.location.search).get("code");
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         router.replace(error ? "/login" : "/targets");
@@ -34,10 +33,9 @@ export default function AuthCallbackPage() {
         }
       }
 
-      // Fallback
       router.replace("/login");
     })();
-  }, [router, sp]);
+  }, [router]);
 
   return <main style={{ padding: 16 }}>Signing you in…</main>;
 }
