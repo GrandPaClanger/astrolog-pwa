@@ -7,24 +7,29 @@ export async function GET(req: NextRequest) {
   const isVercelCron = ua.includes("vercel-cron/1.0");
 
   const auth = req.headers.get("authorization") ?? "";
-  const expected = process.env.CRON_SECRET ? `Bearer ${process.env.CRON_SECRET}` : "";
+  const secret = process.env.CRON_SECRET ?? "";
+  const expected = secret ? `Bearer ${secret}` : "";
 
   // Allow either:
   //  - Vercel Cron (User-Agent vercel-cron/1.0)
-  //  - Manual authenticated ping with Bearer CRON_SECRET
+  //  - Authenticated ping with Bearer CRON_SECRET (GitHub Actions / manual)
   if (!isVercelCron && (!expected || auth !== expected)) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
   if (!url || !anon) {
     return new Response("Missing Supabase env vars", { status: 500 });
   }
 
+  // Lightweight REST call to record activity
   const res = await fetch(`${url}/rest/v1/target?select=target_id&limit=1`, {
-    headers: { apikey: anon, authorization: `Bearer ${anon}` },
+    headers: {
+      apikey: anon,
+      authorization: `Bearer ${anon}`,
+    },
     cache: "no-store",
   });
 
@@ -33,5 +38,9 @@ export async function GET(req: NextRequest) {
     return new Response(`Supabase ping failed: ${res.status} ${text}`, { status: 500 });
   }
 
-  return Response.json({ ok: true, ts: new Date().toISOString() });
+  return Response.json({
+    ok: true,
+    supabase_status: res.status, // proof we reached Supabase
+    ts: new Date().toISOString(),
+  });
 }

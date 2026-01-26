@@ -2,7 +2,7 @@ name: Heartbeat
 
 on:
   schedule:
-    - cron: "0 6 */3 * *"
+    - cron: "0 6 */3 * *" # every 3 days at 06:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -16,9 +16,9 @@ jobs:
             echo "CRON_SECRET is empty - check repo secret name is exactly CRON_SECRET"
             exit 1
           fi
+
           curl -sS -f \
             -H "Authorization: Bearer ${CRON_SECRET}" \
-            "https://astrolog-pwa.vercel.app/api/heartbeat" \
-            > /dev/null
+            "https://astrolog-pwa.vercel.app/api/heartbeat"
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
