@@ -1,19 +1,14 @@
-name: Heartbeat
+- name: Ping heartbeat
+  shell: bash
+  run: |
+    if [ -z "${CRON_SECRET:-}" ]; then
+      echo "CRON_SECRET is empty - check the repo secret name is exactly CRON_SECRET"
+      exit 1
+    fi
 
-on:
-  schedule:
-    - cron: "0 6 */3 * *" # every 3 days at 06:00 UTC
-  workflow_dispatch:
-
-jobs:
-  ping:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Ping heartbeat
-        run: |
-          curl -sS -f \
-            -H "Authorization: Bearer $CRON_SECRET" \
-            "https://astrolog-pwa.vercel.app/api/heartbeat" \
-            > /dev/null
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    curl -sS -f \
+      -H "Authorization: Bearer ${CRON_SECRET}" \
+      "https://astrolog-pwa.vercel.app/api/heartbeat" \
+      > /dev/null
+  env:
+    CRON_SECRET: ${{ secrets.CRON_SECRET }}
