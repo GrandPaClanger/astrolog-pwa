@@ -1,21 +1,37 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { ClientShell } from "@/components/ClientShell";
 import VersionGate from "@/components/VersionGate";
 
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
-  title: "astrolog-pwa",
-  description: "Astrophotography session log PWA",
+  title: "Astrolog",
+  description: "Astrophotography session log",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Astrolog",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#3b82f6",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
-        <div className="container">
-          <VersionGate />
-          <ClientShell>{children}</ClientShell>
-        </div>
+    <html lang="en" className="dark">
+      <body className={`${inter.variable} font-sans antialiased bg-astro-bg text-astro-text`}>
+        <VersionGate />
+        <ClientShell>{children}</ClientShell>
       </body>
     </html>
   );

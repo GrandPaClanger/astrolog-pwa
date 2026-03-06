@@ -25,17 +25,6 @@ const CONFIGS: Config[] = [
   { key: "object_catalog", title: "Object catalog", pk: "object_id", editable: ["catalog_no", "description"], orderBy: { col: "catalog_no", asc: true }, searchable: true },
 ];
 
-function inputStyle(): React.CSSProperties {
-  return {
-    width: "100%",
-    padding: "8px 10px",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.2)",
-    background: "rgba(0,0,0,0.35)",
-    color: "white",
-  };
-}
-
 export default function MaintenancePage() {
   const sb = supabase as any;
 
@@ -159,21 +148,21 @@ export default function MaintenancePage() {
   }
 
   return (
-    <main style={{ padding: 16, maxWidth: 1000, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+    <div className="page-wrapper">
+      <div className="flex items-center gap-4 mb-6">
         <h1 style={{ margin: 0 }}>Maintenance</h1>
-        <Link href="/targets" style={{ marginLeft: "auto" }}>
+        <Link href="/targets" className="btn-ghost ml-auto">
           Back to Targets
         </Link>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12, marginBottom: 12 }}>
         <div>
-          <label style={{ display: "block", marginBottom: 6 }}>Table</label>
+          <label>Table</label>
           <select
             value={table}
             onChange={(e) => setTable(e.target.value as TableKey)}
-            style={{ ...inputStyle() }}
+            className="input"
           >
             {CONFIGS.map((c) => (
               <option key={c.key} value={c.key}>{c.title}</option>
@@ -183,12 +172,12 @@ export default function MaintenancePage() {
 
         {cfg.searchable ? (
           <div>
-            <label style={{ display: "block", marginBottom: 6 }}>Search</label>
+            <label>Search</label>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Type 2+ chars to filter results…"
-              style={inputStyle()}
+              className="input"
             />
           </div>
         ) : (
@@ -198,46 +187,43 @@ export default function MaintenancePage() {
 
       <h2 style={{ marginTop: 0 }}>{cfg.title}</h2>
 
-      <div style={{ marginBottom: 12, opacity: 0.85 }}>
+      <div className="text-slate-500 text-sm mb-3">
         {loading ? "Loading…" : `${rows.length} rows`}
       </div>
 
       {/* Add row */}
-      <div style={{ padding: 12, borderRadius: 12, border: "1px solid rgba(255,255,255,0.15)", marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Add new</div>
+      <div className="card mb-6">
+        <div className="font-semibold text-slate-200 mb-3">Add new</div>
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${cfg.editable.length}, 1fr)`, gap: 10 }}>
           {cfg.editable.map((col) => (
             <div key={col}>
-              <label style={{ display: "block", marginBottom: 6 }}>{col}</label>
+              <label>{col}</label>
               <input
                 value={draft[col] ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, [col]: e.target.value }))}
-                style={inputStyle()}
+                className="input"
               />
             </div>
           ))}
         </div>
         <div style={{ marginTop: 12 }}>
-          <button onClick={addRow} style={{ padding: "8px 12px" }}>
+          <button className="btn-primary" onClick={addRow}>
             Add
           </button>
         </div>
       </div>
 
       {/* Rows */}
-      <div style={{ overflowX: "auto" }}>
+      <div className="overflow-x-auto rounded-xl border border-slate-700">
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               {cfg.editable.map((c) => (
-                <th
-                  key={c}
-                  style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }}
-                >
+                <th key={c}>
                   {c}
                 </th>
               ))}
-              <th style={{ padding: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }} />
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -253,7 +239,7 @@ export default function MaintenancePage() {
           </tbody>
         </table>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -280,23 +266,17 @@ function RowEditor(props: {
   return (
     <tr>
       {cfg.editable.map((c) => (
-        <td key={c} style={{ padding: 8, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <td key={c}>
           <input
             value={edit[c] ?? ""}
             onChange={(e) => setEdit((p) => ({ ...p, [c]: e.target.value }))}
-            style={{
-              width: "100%",
-              padding: "6px 8px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.2)",
-              background: "rgba(0,0,0,0.35)",
-              color: "white",
-            }}
+            className="input-sm"
+            style={{ width: "100%" }}
           />
         </td>
       ))}
-      <td style={{ padding: 8, borderBottom: "1px solid rgba(255,255,255,0.08)", textAlign: "right" }}>
-        <button onClick={() => onSave(pkValue, edit)} style={{ padding: "6px 10px" }}>
+      <td style={{ textAlign: "right" }}>
+        <button className="btn-sm" onClick={() => onSave(pkValue, edit)}>
           Save
         </button>
       </td>

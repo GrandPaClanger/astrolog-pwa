@@ -220,8 +220,8 @@ export default function TargetDetailPage() {
     router.refresh();
   }
 
-  if (loading) return <main style={{ padding: 16 }}>Loading…</main>;
-  if (!target) return <main style={{ padding: 16 }}>Not found</main>;
+  if (loading) return <div className="page-wrapper">Loading…</div>;
+  if (!target) return <div className="page-wrapper">Not found</div>;
 
   const runsBySession = new Map<number, ImageRunRow[]>();
   for (const r of runs) {
@@ -231,105 +231,90 @@ export default function TargetDetailPage() {
   }
 
   return (
-    <main style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
+    <div className="page-wrapper">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
         <div>
-          <h1 style={{ marginBottom: 4 }}>{target.catalog_no}</h1>
-          {target.description && <div style={{ opacity: 0.85, marginBottom: 10 }}>{target.description}</div>}
-          <div style={{ opacity: 0.85 }}>
-            Total integration (all sessions): <b>{fmtHMS(totalAllSessionsSec)}</b>
-          </div>
+          <h1>{target.catalog_no}</h1>
+          {target.description && <p className="text-slate-400 mt-1">{target.description}</p>}
+          <p className="text-slate-300 mt-1">
+            Total integration (all sessions): <span className="font-semibold text-slate-100">{fmtHMS(totalAllSessionsSec)}</span>
+          </p>
         </div>
 
-        {/* FIXED: single button row (no broken nested div) */}
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => router.push("/targets")}>Home</button>
-          <button onClick={() => router.push(`/targets/${tid}/edit`)}>Edit Target</button>
-          <button onClick={onDeleteTarget}>Delete Target</button>
-          <button onClick={() => router.push(`/sessions/new?target_id=${tid}`)}>New Session</button>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-secondary" onClick={() => router.push("/targets")}>Home</button>
+          <button className="btn-secondary" onClick={() => router.push(`/targets/${tid}/edit`)}>Edit Target</button>
+          <button className="btn-danger" onClick={onDeleteTarget}>Delete Target</button>
+          <button className="btn-secondary" onClick={() => router.push(`/sessions/new?target_id=${tid}`)}>New Session</button>
         </div>
       </div>
 
-      <h2 style={{ marginTop: 22 }}>Sessions</h2>
+      <h2>Sessions</h2>
 
       {sessions.length === 0 ? (
-        <div style={{ opacity: 0.8 }}>No sessions yet.</div>
+        <div className="text-slate-400">No sessions yet.</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div className="flex flex-col gap-4">
           {sessions.map((s) => {
             const sessionSec = sessionIntegrationSec.get(s.session_id) ?? 0;
             const theseRuns = runsBySession.get(s.session_id) ?? [];
 
             return (
-              <div
-                key={s.session_id}
-                style={{
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  borderRadius: 10,
-                  padding: 12,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div key={s.session_id} className="card mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
                   <div>
-                    <div style={{ fontWeight: 700 }}>
+                    <div className="font-semibold text-slate-100">
                       Session #{s.session_id} — {ukDate(s.session_date)}
                     </div>
 
-                    <div style={{ opacity: 0.85, marginTop: 6 }}>
-                      Total integration: <b>{fmtHMS(sessionSec)}</b>
+                    <div className="text-sm text-slate-400 mt-1 space-y-0.5">
+                      <div>Total integration: <span className="font-semibold text-slate-100">{fmtHMS(sessionSec)}</span></div>
+                      <div>
+                        {s.telescope?.name ? `Telescope: ${s.telescope.name}` : ""}
+                        {s.mount?.name ? ` | Mount: ${s.mount.name}` : ""}
+                        {s.camera?.name ? ` | Camera: ${s.camera.name}` : ""}
+                        {s.location?.name ? ` | Location: ${s.location.name}` : ""}
+                      </div>
                     </div>
 
-                    <div style={{ opacity: 0.85, marginTop: 6 }}>
-                      {s.telescope?.name ? `Telescope: ${s.telescope.name}` : ""}
-                      {s.mount?.name ? ` | Mount: ${s.mount.name}` : ""}
-                      {s.camera?.name ? ` | Camera: ${s.camera.name}` : ""}
-                      {s.location?.name ? ` | Location: ${s.location.name}` : ""}
-                    </div>
-
-                    {s.notes && <div style={{ marginTop: 8, opacity: 0.9 }}>{s.notes}</div>}
+                    {s.notes && <div className="text-sm text-slate-300 mt-2 italic">{s.notes}</div>}
                   </div>
 
-                  <div style={{ display: "flex", gap: 10, height: "fit-content" }}>
-                    <button onClick={() => router.push(`/sessions/edit?session_id=${s.session_id}`)}>Edit Session</button>
-                    <button onClick={() => router.push(`/sessions/new?session_id=${s.session_id}`)}>Add Image Run</button>
-                    <button onClick={() => onDeleteSession(s.session_id)}>Delete Session</button>
+                  <div className="flex flex-wrap gap-2">
+                    <button className="btn-secondary" onClick={() => router.push(`/sessions/edit?session_id=${s.session_id}`)}>Edit Session</button>
+                    <button className="btn-secondary" onClick={() => router.push(`/sessions/new?session_id=${s.session_id}`)}>Add Image Run</button>
+                    <button className="btn-danger" onClick={() => onDeleteSession(s.session_id)}>Delete Session</button>
                   </div>
                 </div>
 
-                <div style={{ marginTop: 10, opacity: 0.9, fontWeight: 600 }}>Image runs</div>
+                <div className="font-semibold text-slate-300 text-sm mb-1">Image runs</div>
 
                 {theseRuns.length === 0 ? (
-                  <div style={{ opacity: 0.75, marginTop: 6 }}>No runs yet.</div>
+                  <div className="text-slate-400 text-sm">No runs yet.</div>
                 ) : (
-                  <div style={{ marginTop: 6 }}>
+                  <div>
                     {theseRuns.map((r) => {
                       const runSec = runIntegrationSec.get(r.image_run_id) ?? 0;
 
                       return (
                         <div
                           key={r.image_run_id}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 12,
-                            padding: "8px 0",
-                            borderTop: "1px solid rgba(255,255,255,0.08)",
-                          }}
+                          className="flex justify-between items-center py-2 border-t border-slate-700/50"
                         >
-                          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                          <div className="flex gap-3 flex-wrap text-sm text-slate-300">
                             <div>
                               {ukDate(r.run_date)} — Panel {r.panel_no ?? "—"} — {r.panel_name ?? ""}
                             </div>
-                            <div style={{ opacity: 0.9 }}>
-                              Integration: <b>{fmtHMS(runSec)}</b>
+                            <div>
+                              Integration: <span className="font-semibold text-slate-100">{fmtHMS(runSec)}</span>
                             </div>
                           </div>
 
-                          <div style={{ display: "flex", gap: 10 }}>
-                            <button onClick={() => router.push(`/image-runs/edit?image_run_id=${r.image_run_id}`)}>
+                          <div className="flex gap-2">
+                            <button className="btn-secondary" onClick={() => router.push(`/image-runs/edit?image_run_id=${r.image_run_id}`)}>
                               Edit Run
                             </button>
-                            <button onClick={() => onDeleteRun(r.image_run_id)}>Delete Run</button>
+                            <button className="btn-danger" onClick={() => onDeleteRun(r.image_run_id)}>Delete Run</button>
                           </div>
                         </div>
                       );
@@ -341,6 +326,6 @@ export default function TargetDetailPage() {
           })}
         </div>
       )}
-    </main>
+    </div>
   );
 }

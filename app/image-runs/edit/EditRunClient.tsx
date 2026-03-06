@@ -188,51 +188,59 @@ export default function EditRunClient() {
     router.refresh();
   }
 
-  if (loading) return <div>Loading…</div>;
-  if (!row) return <div>Not found</div>;
+  if (loading) return <div className="page-wrapper">Loading…</div>;
+  if (!row) return <div className="page-wrapper">Not found</div>;
 
   return (
-    <>
+    <div className="page-wrapper max-w-4xl">
       <h1>Edit Image Run #{row.image_run_id}</h1>
 
-      <div style={{ margin: "8px 0 14px", opacity: 0.85 }}>
-        Total integration: <b>{fmtHMS(totalSec)}</b>
+      <div className="text-slate-300 mb-4">
+        Total integration: <span className="font-semibold text-slate-100">{fmtHMS(totalSec)}</span>
       </div>
 
-      <label>Run date</label>
-      <input
-        value={row.run_date ?? ""}
-        onChange={(e) => setRow({ ...row, run_date: e.target.value || null })}
-        placeholder="YYYY-MM-DD"
-        style={{ width: "100%", margin: "6px 0 12px" }}
-      />
+      <div className="form-field">
+        <label>Run date</label>
+        <input
+          className="input"
+          value={row.run_date ?? ""}
+          onChange={(e) => setRow({ ...row, run_date: e.target.value || null })}
+          placeholder="YYYY-MM-DD"
+        />
+      </div>
 
-      <label>Panel no</label>
-      <input
-        type="number"
-        value={row.panel_no ?? ""}
-        onChange={(e) => setRow({ ...row, panel_no: e.target.value === "" ? null : Number(e.target.value) })}
-        style={{ width: "100%", margin: "6px 0 12px" }}
-      />
+      <div className="form-field">
+        <label>Panel no</label>
+        <input
+          className="input"
+          type="number"
+          value={row.panel_no ?? ""}
+          onChange={(e) => setRow({ ...row, panel_no: e.target.value === "" ? null : Number(e.target.value) })}
+        />
+      </div>
 
-      <label>Panel name</label>
-      <input
-        value={row.panel_name ?? ""}
-        onChange={(e) => setRow({ ...row, panel_name: e.target.value || null })}
-        style={{ width: "100%", margin: "6px 0 12px" }}
-      />
+      <div className="form-field">
+        <label>Panel name</label>
+        <input
+          className="input"
+          value={row.panel_name ?? ""}
+          onChange={(e) => setRow({ ...row, panel_name: e.target.value || null })}
+        />
+      </div>
 
-      <label>Notes</label>
-      <textarea
-        value={row.notes ?? ""}
-        onChange={(e) => setRow({ ...row, notes: e.target.value || null })}
-        rows={4}
-        style={{ width: "100%", margin: "6px 0 12px" }}
-      />
+      <div className="form-field">
+        <label>Notes</label>
+        <textarea
+          className="input"
+          value={row.notes ?? ""}
+          onChange={(e) => setRow({ ...row, notes: e.target.value || null })}
+          rows={4}
+        />
+      </div>
 
-      <h2 style={{ marginTop: 14 }}>Filters</h2>
+      <h2>Filters</h2>
 
-      <div style={{ overflowX: "auto" }}>
+      <div className="overflow-x-auto rounded-xl border border-slate-700 mb-4">
         <table>
           <thead>
             <tr>
@@ -253,6 +261,7 @@ export default function EditRunClient() {
                 <tr key={i}>
                   <td>
                     <select
+                      className="input-sm"
                       value={l.filter_id ?? ""}
                       onChange={(e) => updateLine(i, { filter_id: e.target.value ? Number(e.target.value) : null })}
                     >
@@ -270,6 +279,7 @@ export default function EditRunClient() {
                       type="number"
                       value={l.exposures}
                       onChange={(e) => updateLine(i, { exposures: Number(e.target.value) })}
+                      className="input-sm"
                       style={{ width: 110 }}
                     />
                   </td>
@@ -279,6 +289,7 @@ export default function EditRunClient() {
                       type="number"
                       value={l.exposure_sec}
                       onChange={(e) => updateLine(i, { exposure_sec: Number(e.target.value) })}
+                      className="input-sm"
                       style={{ width: 130 }}
                     />
                   </td>
@@ -289,6 +300,7 @@ export default function EditRunClient() {
                       type="number"
                       value={l.gain ?? ""}
                       onChange={(e) => updateLine(i, { gain: e.target.value === "" ? null : Number(e.target.value) })}
+                      className="input-sm"
                       style={{ width: 72 }}
                     />
                   </td>
@@ -301,6 +313,7 @@ export default function EditRunClient() {
                       onChange={(e) =>
                         updateLine(i, { camera_offset: e.target.value === "" ? null : Number(e.target.value) })
                       }
+                      className="input-sm"
                       style={{ width: 72 }}
                     />
                   </td>
@@ -311,6 +324,7 @@ export default function EditRunClient() {
                       type="number"
                       value={l.bin ?? ""}
                       onChange={(e) => updateLine(i, { bin: e.target.value === "" ? null : Number(e.target.value) })}
+                      className="input-sm"
                       style={{ width: 56 }}
                     />
                   </td>
@@ -318,7 +332,7 @@ export default function EditRunClient() {
                   <td>{fmtHMS(lineSec)}</td>
 
                   <td>
-                    <button onClick={() => removeLine(i)} style={{ padding: "4px 8px" }}>
+                    <button className="btn-danger text-xs px-2 py-1" onClick={() => removeLine(i)}>
                       Remove
                     </button>
                   </td>
@@ -329,15 +343,15 @@ export default function EditRunClient() {
         </table>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <button onClick={addLineCopyPrev}>Add filter line</button>
-        <button onClick={save} disabled={saving}>
+      <div className="flex flex-wrap gap-2 mt-4">
+        <button className="btn-secondary" onClick={addLineCopyPrev}>Add filter line</button>
+        <button className="btn-primary" onClick={save} disabled={saving}>
           {saving ? "Saving…" : "Save"}
         </button>
-        <button onClick={() => router.back()} disabled={saving}>
+        <button className="btn-ghost" onClick={() => router.back()} disabled={saving}>
           Cancel
         </button>
       </div>
-    </>
+    </div>
   );
 }

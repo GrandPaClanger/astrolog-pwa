@@ -64,61 +64,57 @@ export default function EditTargetPage() {
     router.refresh();
   }
 
-  if (loading) return <main style={{ padding: 16 }}>Loading…</main>;
-  if (!row) return <main style={{ padding: 16 }}>Not found</main>;
+  if (loading) return <div className="page-wrapper">Loading…</div>;
+  if (!row) return <div className="page-wrapper">Not found</div>;
 
   return (
-    <main style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
-      <h1 style={{ marginTop: 0 }}>Edit Target</h1>
+    <div className="page-wrapper max-w-3xl">
+      <h1>Edit Target</h1>
 
       {/* Grid layout: 2 columns, then notes full width */}
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(220px, 1fr) minmax(300px, 2fr)",
-          gap: 14,
-          alignItems: "start",
-        }}
+        className="grid gap-4 mb-4"
+        style={{ gridTemplateColumns: "minmax(220px, 1fr) minmax(300px, 2fr)" }}
       >
         <div>
-          <label style={{ display: "block", marginBottom: 6 }}>Catalog No</label>
+          <label>Catalog No</label>
           <input
+            className="input w-full"
             value={row.catalog_no ?? ""}
             onChange={(e) => setRow({ ...row, catalog_no: e.target.value })}
-            style={{ width: "100%", padding: 10 }}
           />
         </div>
 
         <div>
-          <label style={{ display: "block", marginBottom: 6 }}>Description</label>
+          <label>Description</label>
           <input
+            className="input w-full"
             value={row.description ?? ""}
             onChange={(e) => setRow({ ...row, description: e.target.value || null })}
-            style={{ width: "100%", padding: 10 }}
           />
         </div>
 
         {hasNotes && (
           <div style={{ gridColumn: "1 / -1" }}>
-            <label style={{ display: "block", marginBottom: 6 }}>Notes</label>
+            <label>Notes</label>
             <textarea
+              className="input"
               value={row.notes ?? ""}
               onChange={(e) => setRow({ ...row, notes: e.target.value || null })}
               rows={6}
-              style={{ width: "100%", padding: 10 }}
             />
           </div>
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-        <button onClick={onSave} disabled={saving} style={{ padding: "8px 12px" }}>
+      <div className="flex gap-2 mt-4">
+        <button className="btn-primary" onClick={onSave} disabled={saving}>
           {saving ? "Saving…" : "Save"}
         </button>
-        <button onClick={() => router.back()} disabled={saving} style={{ padding: "8px 12px" }}>
+        <button className="btn-ghost" onClick={() => router.back()} disabled={saving}>
           Cancel
         </button>
       </div>
-    </main>
+    </div>
   );
 }
