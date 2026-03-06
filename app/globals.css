@@ -1,47 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  color-scheme: dark;
+  --background: #0f172a;
+  --foreground: #f1f5f9;
 }
 
-html, body {
-  margin: 0;
-  padding: 0;
-  background: #000;
-  color: #fff;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+@layer base {
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: hidden;
+    background-color: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color-scheme: dark;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  h1 {
+    @apply text-2xl font-bold text-slate-100 mb-4;
+  }
+
+  h2 {
+    @apply text-lg font-semibold text-slate-200 mt-6 mb-3;
+  }
+
+  label {
+    @apply block text-xs font-medium uppercase tracking-wide text-slate-400 mb-1;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    @apply text-left text-xs font-semibold uppercase tracking-wide text-slate-400 px-3 py-2 border-b border-slate-700;
+  }
+
+  td {
+    @apply px-3 py-2 border-b border-slate-800 text-slate-200;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-slate-100 placeholder-slate-400
+           focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500
+           disabled:opacity-40;
+  }
 }
 
-a { color: #fff; text-decoration: underline; }
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
 
-input, select, textarea {
-  background: #111;
-  color: #fff;
-  border: 1px solid #444;
-  padding: 8px;
-}
+  .btn-primary {
+    @apply btn bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700;
+  }
 
-button {
-  background: #111;
-  color: #fff;
-  border: 1px solid #444;
-  padding: 8px 12px;
-  cursor: pointer;
-}
+  .btn-secondary {
+    @apply btn bg-slate-700 text-slate-100 hover:bg-slate-600 active:bg-slate-500;
+  }
 
-button:hover {
-  border-color: #777;
-}
+  .btn-ghost {
+    @apply btn bg-transparent text-slate-300 hover:bg-slate-800 hover:text-slate-100;
+  }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
+  .btn-danger {
+    @apply btn bg-transparent text-red-400 hover:bg-red-950 hover:text-red-300;
+  }
 
-th, td {
-  border-bottom: 1px solid #222;
-  padding: 10px 8px;
-}
+  .btn-sm {
+    @apply btn bg-slate-700 text-slate-100 hover:bg-slate-600 px-3 py-1 text-xs;
+  }
 
-th {
-  text-align: left;
-  color: #ddd;
+  .card {
+    @apply rounded-xl border border-slate-700 bg-slate-800 p-4;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-slate-100 placeholder-slate-400
+           focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500
+           disabled:opacity-40;
+  }
+
+  .input-sm {
+    @apply rounded-lg border border-slate-600 bg-slate-700 px-2 py-1 text-sm text-slate-100 placeholder-slate-400
+           focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500
+           disabled:opacity-40;
+  }
+
+  .label {
+    @apply block text-xs font-medium uppercase tracking-wide text-slate-400 mb-1;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+
+  .badge-blue {
+    @apply badge bg-blue-900 text-blue-300;
+  }
+
+  .badge-green {
+    @apply badge bg-green-900 text-green-300;
+  }
+
+  .badge-slate {
+    @apply badge bg-slate-700 text-slate-300;
+  }
+
+  .section-title {
+    @apply text-xs font-semibold uppercase tracking-widest text-slate-400;
+  }
+
+  .page-wrapper {
+    @apply px-4 py-6 max-w-6xl mx-auto;
+  }
+
+  .form-field {
+    @apply mb-4;
+  }
 }

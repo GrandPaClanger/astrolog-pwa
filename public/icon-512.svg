@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="86" fill="#0f172a"/>
+
+  <!-- Stars -->
+  <circle cx="93" cy="93" r="6.5" fill="#f1f5f9" opacity="0.8"/>
+  <circle cx="422" cy="75" r="5.5" fill="#f1f5f9" opacity="0.6"/>
+  <circle cx="449" cy="155" r="5" fill="#f1f5f9" opacity="0.5"/>
+  <circle cx="59" cy="192" r="4" fill="#f1f5f9" opacity="0.6"/>
+  <circle cx="208" cy="64" r="5" fill="#f1f5f9" opacity="0.5"/>
+  <circle cx="395" cy="400" r="4" fill="#f1f5f9" opacity="0.4"/>
+  <circle cx="139" cy="422" r="4" fill="#f1f5f9" opacity="0.4"/>
+
+  <!-- Telescope tube (angled -25 degrees, centered at 251, 224) -->
+  <g transform="translate(251,224) rotate(-25)">
+    <!-- Main tube body -->
+    <rect x="-133" y="-32" width="266" height="64" rx="22" fill="#3b82f6"/>
+    <!-- Objective lens (wider, left end) -->
+    <rect x="-181" y="-43" width="70" height="86" rx="19" fill="#2563eb"/>
+    <!-- Eyepiece (right end) -->
+    <rect x="133" y="-21" width="53" height="42" rx="13" fill="#1d4ed8"/>
+  </g>
+
+  <!-- Tripod base -->
+  <line x1="251" y1="293" x2="181" y2="427" stroke="#475569" stroke-width="11" stroke-linecap="round"/>
+  <line x1="251" y1="293" x2="321" y2="427" stroke="#475569" stroke-width="11" stroke-linecap="round"/>
+  <line x1="251" y1="293" x2="251" y2="427" stroke="#475569" stroke-width="11" stroke-linecap="round"/>
+</svg>

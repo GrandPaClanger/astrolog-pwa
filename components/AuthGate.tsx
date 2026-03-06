@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     let mounted = true;
@@ -14,30 +15,26 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
       setAuthed(!!data.session);
       setReady(true);
+      if (!data.session) router.replace("/login");
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       setAuthed(!!session);
       setReady(true);
+      if (!session) router.replace("/login");
     });
 
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
-  if (!ready) return <p>Loading…</p>;
-
-  if (!authed) {
+  if (!ready || !authed) {
     return (
-      <div className="card">
-        <h2>Sign in required</h2>
-        <p className="small">Use your email to get a magic link.</p>
-        <p>
-          <Link href="/login">Go to Login</Link>
-        </p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-slate-400">Loading…</p>
       </div>
     );
   }

@@ -104,23 +104,16 @@ export default function TargetsPage() {
   }
 
   const body = useMemo(() => {
-    if (loading) return <p>Loading…</p>;
-    if (!rows.length) return <p>No targets yet.</p>;
+    if (loading) return <p className="text-slate-400 py-4">Loading…</p>;
+    if (!rows.length) return <p className="text-slate-400 py-4">No targets yet.</p>;
 
     return (
-      <div style={{ overflowX: "auto" }}>
+      <div className="overflow-x-auto rounded-xl border border-slate-700">
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               {["Catalog No", "Description", "Start Date", "Last Imaged", "Total Integration", "Actions"].map((h) => (
-                <th
-                  key={h}
-                  style={{
-                    textAlign: "left",
-                    padding: 8,
-                    borderBottom: "1px solid #ddd",
-                  }}
-                >
+                <th key={h}>
                   {h}
                 </th>
               ))}
@@ -131,23 +124,23 @@ export default function TargetsPage() {
             {rows.map((r) => (
               <tr
                 key={r.target_id}
-                style={{ cursor: "pointer" }}
+                className="hover:bg-slate-800/40 cursor-pointer transition-colors"
                 onClick={() => router.push(`/targets/${r.target_id}`)}
               >
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.catalog_no}</td>
+                <td className="font-medium text-blue-400">{r.catalog_no}</td>
 
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.description ?? ""}</td>
+                <td className="text-slate-300">{r.description ?? ""}</td>
 
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{ukDate(r.start_date)}</td>
+                <td className="text-slate-400 text-sm">{ukDate(r.start_date)}</td>
 
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{ukDate(r.last_imaged)}</td>
+                <td className="text-slate-400 text-sm">{ukDate(r.last_imaged)}</td>
 
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{fmtHMS(r.total_integration_sec)}</td>
+                <td><span className="badge-slate">{fmtHMS(r.total_integration_sec)}</span></td>
 
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
-                  <div style={{ display: "flex", gap: 8 }}>
+                <td>
+                  <div className="flex gap-2">
                     <button
-                      style={{ padding: "6px 10px" }}
+                      className="btn-sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         router.push(`/targets/${r.target_id}/edit`);
@@ -157,7 +150,7 @@ export default function TargetsPage() {
                     </button>
 
                     <button
-                      style={{ padding: "6px 10px" }}
+                      className="btn-danger text-xs px-2 py-1"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDelete(r.target_id, r.catalog_no);
@@ -172,7 +165,7 @@ export default function TargetsPage() {
           </tbody>
         </table>
 
-        <p style={{ marginTop: 10, opacity: 0.8 }}>
+        <p className="text-slate-400 py-4 px-4">
           Delete will also remove child sessions/panels (DB cascade required).
         </p>
       </div>
@@ -180,32 +173,32 @@ export default function TargetsPage() {
   }, [loading, rows, q, router]);
 
   return (
-    <main style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
+    <div className="page-wrapper">
       <h1>Targets</h1>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "12px 0" }}>
+      <div className="flex flex-wrap gap-2 mb-6">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search catalog no (e.g., M31)"
-          style={{ flex: 1, padding: 8 }}
+          className="input flex-1 min-w-[200px]"
           onKeyDown={(e) => e.key === "Enter" && onSearch()}
         />
 
-        <button style={{ padding: "8px 12px" }} onClick={onSearch}>
+        <button className="btn-secondary" onClick={onSearch}>
           Search
         </button>
 
-        <button style={{ padding: "8px 12px" }} onClick={() => router.push("/sessions/new")}>
+        <button className="btn-primary" onClick={() => router.push("/sessions/new")}>
           New Session
         </button>
 
-        <Link href="/maintenance" style={{ padding: "8px 12px", display: "inline-block" }}>
+        <Link href="/maintenance" className="btn-ghost">
           Maintenance
         </Link>
       </div>
 
       {body}
-    </main>
+    </div>
   );
 }

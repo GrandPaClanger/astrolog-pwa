@@ -133,10 +133,10 @@ function ObjectCatalogSearch(props: {
   }
 
   return (
-    <div ref={boxRef} style={{ position: "relative" }}>
+    <div ref={boxRef} className="relative mb-4">
       <label>Search Object Catalog</label>
 
-      <div style={{ position: "relative", margin: "6px 0 12px" }}>
+      <div className="relative mb-4">
         <div
           style={{
             position: "absolute",
@@ -161,57 +161,29 @@ function ObjectCatalogSearch(props: {
             if (e.key === "Enter" && items.length === 1) pick(items[0]);
           }}
           placeholder="Type to search (e.g. M57, IC 2359, Thor...)"
-          style={{
-            width: "100%",
-            padding: "10px 12px 10px 38px",
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.2)",
-            background: "rgba(0,0,0,0.35)",
-            color: "white",
-          }}
+          className="input"
+          style={{ paddingLeft: 38 }}
         />
       </div>
 
       {open && (
-        <div
-          style={{
-            position: "absolute",
-            zIndex: 50,
-            width: "100%",
-            marginTop: -6,
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.2)",
-            background: "rgba(0,0,0,0.95)",
-            maxHeight: 320,
-            overflow: "auto",
-          }}
-        >
+        <div className="absolute z-50 w-full mt-1 rounded-xl border border-slate-700 bg-slate-900 max-h-80 overflow-auto">
           {query.length < 2 ? (
-            <div style={{ padding: 12, opacity: 0.8 }}>Type 2+ characters…</div>
+            <div className="px-4 py-3 text-sm text-slate-400">Type 2+ characters…</div>
           ) : loading ? (
-            <div style={{ padding: 12, opacity: 0.8 }}>Searching…</div>
+            <div className="px-4 py-3 text-sm text-slate-400">Searching…</div>
           ) : items.length === 0 ? (
-            <div style={{ padding: 12, opacity: 0.8 }}>No matches.</div>
+            <div className="px-4 py-3 text-sm text-slate-400">No matches.</div>
           ) : (
             items.map((it) => (
               <button
                 key={it.catalog_no}
                 type="button"
                 onClick={() => pick(it)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  padding: 12,
-                  border: 0,
-                  background: "transparent",
-                  color: "white",
-                  cursor: "pointer",
-                  borderBottom: "1px solid rgba(255,255,255,0.08)",
-                }}
+                className="w-full text-left px-4 py-3 text-sm border-b border-slate-800 hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                <div style={{ fontWeight: 700 }}>{it.catalog_no}</div>
-                <div style={{ opacity: 0.85, fontSize: 13 }}>{it.description}</div>
+                <div className="font-semibold text-slate-100">{it.catalog_no}</div>
+                <div className="text-slate-400 text-xs">{it.description}</div>
               </button>
             ))
           )}
@@ -415,31 +387,33 @@ export default function NewSessionPage() {
   }
 
   return (
-    <main style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
+    <div className="page-wrapper max-w-4xl">
       <h1>{existingSessionId ? "Add Image Run" : "New Session"}</h1>
 
-      <label>Target</label>
-      <select
-        value={targetId}
-        disabled={!!existingSessionId}
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          setTargetId(v);
-          if (v) {
-            // If user picks an existing target, clear "create new" fields to avoid accidental inserts
-            setNewCatalogNo("");
-            setNewDescription("");
-          }
-        }}
-        style={{ width: "100%", margin: "6px 0 12px" }}
-      >
-        <option value={0}>Select…</option>
-        {targets.map((t) => (
-          <option key={t.target_id} value={t.target_id}>
-            {t.catalog_no} {t.description ? `— ${t.description}` : ""}
-          </option>
-        ))}
-      </select>
+      <div className="form-field">
+        <label>Target</label>
+        <select
+          value={targetId}
+          disabled={!!existingSessionId}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            setTargetId(v);
+            if (v) {
+              // If user picks an existing target, clear "create new" fields to avoid accidental inserts
+              setNewCatalogNo("");
+              setNewDescription("");
+            }
+          }}
+          className="input mb-4"
+        >
+          <option value={0}>Select…</option>
+          {targets.map((t) => (
+            <option key={t.target_id} value={t.target_id}>
+              {t.catalog_no} {t.description ? `— ${t.description}` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {!existingSessionId && (
         <>
@@ -454,46 +428,48 @@ export default function NewSessionPage() {
           />
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
+            <div className="form-field">
               <label>Or create new (Catalog No)</label>
               <input
+                className="input"
                 value={newCatalogNo}
                 onChange={(e) => {
                   setNewCatalogNo(e.target.value);
                   // If user starts typing a new target, ensure we don't keep an existing selection
                   if (e.target.value.trim()) setTargetId(0);
                 }}
-                style={{ width: "100%", margin: "6px 0 12px" }}
               />
             </div>
-            <div>
+            <div className="form-field">
               <label>Description</label>
               <input
+                className="input"
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
-                style={{ width: "100%", margin: "6px 0 12px" }}
               />
             </div>
           </div>
 
           <h2>Session Header</h2>
 
-          <label>Session date</label>
-          <input
-            type="date"
-            value={sessionDate}
-            onChange={(e) => setSessionDate(e.target.value)}
-            style={{ width: "100%", margin: "6px 0 4px" }}
-          />
-          <div style={{ opacity: 0.75, fontSize: 12, marginBottom: 12 }}>{formatUkDate(sessionDate)}</div>
+          <div className="form-field">
+            <label>Session date</label>
+            <input
+              type="date"
+              value={sessionDate}
+              onChange={(e) => setSessionDate(e.target.value)}
+              className="input"
+            />
+            <div className="text-slate-400 text-xs mt-1">{formatUkDate(sessionDate)}</div>
+          </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
+            <div className="form-field">
               <label>Location</label>
               <select
                 value={locationId ?? ""}
                 onChange={(e) => setLocationId(e.target.value ? Number(e.target.value) : null)}
-                style={{ width: "100%", margin: "6px 0 12px" }}
+                className="input"
               >
                 <option value="">— Select —</option>
                 {locations.map((o) => (
@@ -504,12 +480,12 @@ export default function NewSessionPage() {
               </select>
             </div>
 
-            <div>
+            <div className="form-field">
               <label>Telescope</label>
               <select
                 value={telescopeId ?? ""}
                 onChange={(e) => setTelescopeId(e.target.value ? Number(e.target.value) : null)}
-                style={{ width: "100%", margin: "6px 0 12px" }}
+                className="input"
               >
                 <option value="">— Select —</option>
                 {telescopes.map((o) => (
@@ -520,12 +496,12 @@ export default function NewSessionPage() {
               </select>
             </div>
 
-            <div>
+            <div className="form-field">
               <label>Mount</label>
               <select
                 value={mountId ?? ""}
                 onChange={(e) => setMountId(e.target.value ? Number(e.target.value) : null)}
-                style={{ width: "100%", margin: "6px 0 12px" }}
+                className="input"
               >
                 <option value="">— Select —</option>
                 {mounts.map((o) => (
@@ -536,12 +512,12 @@ export default function NewSessionPage() {
               </select>
             </div>
 
-            <div>
+            <div className="form-field">
               <label>Camera</label>
               <select
                 value={cameraId ?? ""}
                 onChange={(e) => setCameraId(e.target.value ? Number(e.target.value) : null)}
-                style={{ width: "100%", margin: "6px 0 12px" }}
+                className="input"
               >
                 <option value="">— Select —</option>
                 {cameras.map((o) => (
@@ -553,29 +529,33 @@ export default function NewSessionPage() {
             </div>
           </div>
 
-          <label>Notes</label>
-          <textarea
-            value={sessionNotes}
-            onChange={(e) => setSessionNotes(e.target.value)}
-            rows={4}
-            style={{ width: "100%", margin: "6px 0 12px" }}
-          />
+          <div className="form-field">
+            <label>Notes</label>
+            <textarea
+              className="input"
+              value={sessionNotes}
+              onChange={(e) => setSessionNotes(e.target.value)}
+              rows={4}
+            />
+          </div>
         </>
       )}
 
       <h2>Image Run</h2>
 
-      <label>Run date</label>
-      <input
-        type="date"
-        value={runDate}
-        onChange={(e) => setRunDate(e.target.value)}
-        style={{ width: "100%", margin: "6px 0 4px" }}
-      />
-      <div style={{ opacity: 0.75, fontSize: 12, marginBottom: 12 }}>{formatUkDate(runDate)}</div>
+      <div className="form-field">
+        <label>Run date</label>
+        <input
+          type="date"
+          value={runDate}
+          onChange={(e) => setRunDate(e.target.value)}
+          className="input"
+        />
+        <div className="text-slate-400 text-xs mt-1">{formatUkDate(runDate)}</div>
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 12 }}>
-        <div>
+        <div className="form-field">
           <label>Panel no</label>
           <select
             value={panelNo ?? ""}
@@ -584,7 +564,7 @@ export default function NewSessionPage() {
               setPanelNo(v);
               if (v && (!panelName || panelName.startsWith("Panel "))) setPanelName(`Panel ${v}`);
             }}
-            style={{ width: "100%", margin: "6px 0 12px" }}
+            className="input"
           >
             <option value="">—</option>
             {PANEL_OPTIONS.map((n) => (
@@ -595,30 +575,32 @@ export default function NewSessionPage() {
           </select>
         </div>
 
-        <div>
+        <div className="form-field">
           <label>Panel name</label>
           <input
+            className="input"
             value={panelName}
             onChange={(e) => setPanelName(e.target.value)}
-            style={{ width: "100%", margin: "6px 0 12px" }}
           />
         </div>
       </div>
 
-      <label>Run Notes</label>
-      <textarea
-        value={runNotes}
-        onChange={(e) => setRunNotes(e.target.value)}
-        rows={3}
-        style={{ width: "100%", margin: "6px 0 12px" }}
-      />
-
-      <h2>Filters</h2>
-      <div style={{ margin: "6px 0 10px", opacity: 0.85 }}>
-        Total integration: <b>{fmtHMS(totalSec)}</b>
+      <div className="form-field">
+        <label>Run Notes</label>
+        <textarea
+          className="input"
+          value={runNotes}
+          onChange={(e) => setRunNotes(e.target.value)}
+          rows={3}
+        />
       </div>
 
-      <div style={{ overflowX: "auto" }}>
+      <h2>Filters</h2>
+      <div className="text-slate-300 mb-3">
+        Total integration: <span className="font-semibold text-slate-100">{fmtHMS(totalSec)}</span>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-slate-700 mb-4">
         <table>
           <thead>
             <tr>
@@ -641,6 +623,7 @@ export default function NewSessionPage() {
                     <select
                       value={l.filter_id ?? ""}
                       onChange={(e) => updateLine(idx, { filter_id: e.target.value ? Number(e.target.value) : null })}
+                      className="input-sm"
                     >
                       <option value="">—</option>
                       {filters.map((f) => (
@@ -656,6 +639,7 @@ export default function NewSessionPage() {
                       type="number"
                       value={l.exposures}
                       onChange={(e) => updateLine(idx, { exposures: Number(e.target.value) })}
+                      className="input-sm"
                       style={{ width: 110 }}
                     />
                   </td>
@@ -665,6 +649,7 @@ export default function NewSessionPage() {
                       type="number"
                       value={l.exposure_sec}
                       onChange={(e) => updateLine(idx, { exposure_sec: Number(e.target.value) })}
+                      className="input-sm"
                       style={{ width: 130 }}
                     />
                   </td>
@@ -674,6 +659,7 @@ export default function NewSessionPage() {
                       type="number"
                       value={l.gain ?? ""}
                       onChange={(e) => updateLine(idx, { gain: e.target.value === "" ? null : Number(e.target.value) })}
+                      className="input-sm"
                       style={{ width: 72 }}
                     />
                   </td>
@@ -685,6 +671,7 @@ export default function NewSessionPage() {
                       onChange={(e) =>
                         updateLine(idx, { camera_offset: e.target.value === "" ? null : Number(e.target.value) })
                       }
+                      className="input-sm"
                       style={{ width: 72 }}
                     />
                   </td>
@@ -694,6 +681,7 @@ export default function NewSessionPage() {
                       type="number"
                       value={l.bin ?? ""}
                       onChange={(e) => updateLine(idx, { bin: e.target.value === "" ? null : Number(e.target.value) })}
+                      className="input-sm"
                       style={{ width: 56 }}
                     />
                   </td>
@@ -701,7 +689,7 @@ export default function NewSessionPage() {
                   <td>{fmtHMS(lineSec)}</td>
 
                   <td>
-                    <button onClick={() => removeLine(idx)} style={{ padding: "4px 8px" }}>
+                    <button className="btn-danger text-xs px-2 py-1" onClick={() => removeLine(idx)}>
                       Remove
                     </button>
                   </td>
@@ -712,11 +700,11 @@ export default function NewSessionPage() {
         </table>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <button onClick={addLineCopyPrev}>Add filter line (copy last)</button>
-        <button onClick={save}>Save</button>
-        <button onClick={() => router.back()}>Cancel</button>
+      <div className="flex flex-wrap gap-2 mt-4">
+        <button className="btn-secondary" onClick={addLineCopyPrev}>Add filter line (copy last)</button>
+        <button className="btn-primary" onClick={save}>Save</button>
+        <button className="btn-ghost" onClick={() => router.back()}>Cancel</button>
       </div>
-    </main>
+    </div>
   );
 }

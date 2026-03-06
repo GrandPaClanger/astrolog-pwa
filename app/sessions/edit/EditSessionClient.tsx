@@ -86,30 +86,32 @@ export default function EditSessionClient() {
     router.refresh();
   }
 
-  if (loading) return <div>Loading…</div>;
-  if (!row) return <div>Not found</div>;
+  if (loading) return <div className="page-wrapper">Loading…</div>;
+  if (!row) return <div className="page-wrapper">Not found</div>;
 
   return (
-    <>
+    <div className="page-wrapper max-w-3xl">
       <h1>Edit Session #{row.session_id}</h1>
 
-      <label>Session date</label>
-      <input
-        value={row.session_date ?? ""}
-        onChange={(e) => setRow({ ...row, session_date: e.target.value || null })}
-        placeholder="YYYY-MM-DD"
-        style={{ width: "100%", margin: "6px 0 12px" }}
-      />
+      <div className="form-field">
+        <label>Session date</label>
+        <input
+          className="input"
+          value={row.session_date ?? ""}
+          onChange={(e) => setRow({ ...row, session_date: e.target.value || null })}
+          placeholder="YYYY-MM-DD"
+        />
+      </div>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 240px" }}>
+        <div style={{ flex: "1 1 240px" }} className="form-field">
           <label>Location</label>
           <select
+            className="input"
             value={row.location_id ?? ""}
             onChange={(e) =>
               setRow({ ...row, location_id: e.target.value ? Number(e.target.value) : null })
             }
-            style={{ width: "100%", margin: "6px 0 12px" }}
           >
             <option value="">— Select —</option>
             {locations.map((o) => (
@@ -120,14 +122,14 @@ export default function EditSessionClient() {
           </select>
         </div>
 
-        <div style={{ flex: "1 1 240px" }}>
+        <div style={{ flex: "1 1 240px" }} className="form-field">
           <label>Telescope</label>
           <select
+            className="input"
             value={row.telescope_id ?? ""}
             onChange={(e) =>
               setRow({ ...row, telescope_id: e.target.value ? Number(e.target.value) : null })
             }
-            style={{ width: "100%", margin: "6px 0 12px" }}
           >
             <option value="">— Select —</option>
             {telescopes.map((o) => (
@@ -138,14 +140,14 @@ export default function EditSessionClient() {
           </select>
         </div>
 
-        <div style={{ flex: "1 1 240px" }}>
+        <div style={{ flex: "1 1 240px" }} className="form-field">
           <label>Mount</label>
           <select
+            className="input"
             value={row.mount_id ?? ""}
             onChange={(e) =>
               setRow({ ...row, mount_id: e.target.value ? Number(e.target.value) : null })
             }
-            style={{ width: "100%", margin: "6px 0 12px" }}
           >
             <option value="">— Select —</option>
             {mounts.map((o) => (
@@ -156,14 +158,14 @@ export default function EditSessionClient() {
           </select>
         </div>
 
-        <div style={{ flex: "1 1 240px" }}>
+        <div style={{ flex: "1 1 240px" }} className="form-field">
           <label>Camera</label>
           <select
+            className="input"
             value={row.camera_id ?? ""}
             onChange={(e) =>
               setRow({ ...row, camera_id: e.target.value ? Number(e.target.value) : null })
             }
-            style={{ width: "100%", margin: "6px 0 12px" }}
           >
             <option value="">— Select —</option>
             {cameras.map((o) => (
@@ -175,18 +177,20 @@ export default function EditSessionClient() {
         </div>
       </div>
 
-      <label>Notes</label>
-      <textarea
-        value={row.notes ?? ""}
-        onChange={(e) => setRow({ ...row, notes: e.target.value || null })}
-        rows={6}
-        style={{ width: "100%", margin: "6px 0 12px" }}
-      />
-
-      <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={save}>Save</button>
-        <button onClick={() => router.back()}>Cancel</button>
+      <div className="form-field">
+        <label>Notes</label>
+        <textarea
+          className="input"
+          value={row.notes ?? ""}
+          onChange={(e) => setRow({ ...row, notes: e.target.value || null })}
+          rows={6}
+        />
       </div>
-    </>
+
+      <div className="flex gap-2">
+        <button className="btn-primary" onClick={save}>Save</button>
+        <button className="btn-ghost" onClick={() => router.back()}>Cancel</button>
+      </div>
+    </div>
   );
 }
