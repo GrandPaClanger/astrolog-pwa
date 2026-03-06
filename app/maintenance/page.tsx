@@ -13,14 +13,15 @@ type Config = {
   editable: string[];
   orderBy: { col: string; asc: boolean };
   searchable?: boolean;
+  requiresPerson?: boolean;
 };
 
 const CONFIGS: Config[] = [
-  { key: "camera", title: "Camera", pk: "camera_id", editable: ["name"], orderBy: { col: "name", asc: true } },
-  { key: "filter", title: "Filter", pk: "filter_id", editable: ["name", "sort_order"], orderBy: { col: "sort_order", asc: true } },
-  { key: "location", title: "Location", pk: "location_id", editable: ["name"], orderBy: { col: "name", asc: true } },
-  { key: "mount", title: "Mount", pk: "mount_id", editable: ["name"], orderBy: { col: "name", asc: true } },
-  { key: "telescope", title: "Telescope", pk: "telescope_id", editable: ["name", "notes"], orderBy: { col: "name", asc: true } },
+  { key: "camera",   title: "Camera",   pk: "camera_id",   editable: ["name"],                    orderBy: { col: "name",       asc: true } },
+  { key: "filter",   title: "Filter",   pk: "filter_id",   editable: ["name", "sort_order"],      orderBy: { col: "sort_order", asc: true } },
+  { key: "location", title: "Location", pk: "location_id", editable: ["name"],                    orderBy: { col: "name",       asc: true } },
+  { key: "mount",    title: "Mount",    pk: "mount_id",    editable: ["name"],                    orderBy: { col: "name",       asc: true } },
+  { key: "telescope",title: "Telescope",pk: "telescope_id",editable: ["name", "notes"],           orderBy: { col: "name",       asc: true }, requiresPerson: true },
   { key: "object_catalog", title: "Object catalog", pk: "object_id", editable: ["catalog_no", "description"], orderBy: { col: "catalog_no", asc: true }, searchable: true },
 ];
 
@@ -36,21 +37,23 @@ function inputStyle(): React.CSSProperties {
 }
 
 export default function MaintenancePage() {
-  // IMPORTANT: avoid TS "excessively deep" inference on dynamic table names
   const sb = supabase as any;
 
-  const [table, setTable] = useState<TableKey>("camera");
+  const [table, setTable]   = useState<TableKey>("camera");
   const cfg = useMemo(() => CONFIGS.find((c) => c.key === table)!, [table]);
 
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows]     = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [personId, setPersonId] = useState<number | null>(null);
 
-  const [q, setQ] = useState("");
-  const [draft, setDraft] = useState<Record<string, any>>({});
+  const [q, setQ]           = useState("");
+  const [draft, setDraft]   = useState<Record<string, any>>({});
 
+  // Ensure person exists and cache their ID
   useEffect(() => {
     void (async () => {
-      await supabase.rpc("ensure_person");
+      const { data, error } = await supabase.rpc("ensure_person");
+      if (!error && data) setPersonId(Number(data));
     })();
   }, []);
 
@@ -64,7 +67,9 @@ export default function MaintenancePage() {
       query = query.or(`catalog_no.ilike.${like},description.ilike.${like}`);
     }
 
-    const { data, error } = await query.order(cfg.orderBy.col, { ascending: cfg.orderBy.asc }).limit(500);
+    const { data, error } = await query
+      .order(cfg.orderBy.col, { ascending: cfg.orderBy.asc })
+      .limit(500);
 
     setLoading(false);
 
@@ -101,8 +106,23 @@ export default function MaintenancePage() {
         if (typeof payload[k] === "string") payload[k] = payload[k].trim() || null;
       }
 
+      // Telescope is user-owned — person_id is filled by the DB trigger (set_person_id_from_auth)
+      // but we need ensure_person to have run first so the person row exists.
+      if (cfg.requiresPerson && !personId) {
+        alert("User profile not ready yet. Please wait a moment and try again.");
+        return;
+      }
+
       const { error } = await sb.from(cfg.key).insert(payload);
-      if (error) return alert(error.message);
+      if (error) {
+        // Give a friendlier message for the common unique-name violation
+        if (error.code === "23505") {
+          alert(`A ${cfg.title.toLowerCase()} with that name already exists.`);
+        } else {
+          alert(error.message);
+        }
+        return;
+      }
 
       setDraft({});
       await load();
@@ -123,7 +143,14 @@ export default function MaintenancePage() {
       }
 
       const { error } = await sb.from(cfg.key).update(payload).eq(cfg.pk, pkValue);
-      if (error) return alert(error.message);
+      if (error) {
+        if (error.code === "23505") {
+          alert(`A ${cfg.title.toLowerCase()} with that name already exists.`);
+        } else {
+          alert(error.message);
+        }
+        return;
+      }
 
       await load();
     } catch (e: any) {
@@ -143,11 +170,13 @@ export default function MaintenancePage() {
       <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12, marginBottom: 12 }}>
         <div>
           <label style={{ display: "block", marginBottom: 6 }}>Table</label>
-          <select value={table} onChange={(e) => setTable(e.target.value as TableKey)} style={{ ...inputStyle() }}>
+          <select
+            value={table}
+            onChange={(e) => setTable(e.target.value as TableKey)}
+            style={{ ...inputStyle() }}
+          >
             {CONFIGS.map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.title}
-              </option>
+              <option key={c.key} value={c.key}>{c.title}</option>
             ))}
           </select>
         </div>
@@ -169,7 +198,9 @@ export default function MaintenancePage() {
 
       <h2 style={{ marginTop: 0 }}>{cfg.title}</h2>
 
-      <div style={{ marginBottom: 12, opacity: 0.85 }}>{loading ? "Loading…" : `${rows.length} rows`}</div>
+      <div style={{ marginBottom: 12, opacity: 0.85 }}>
+        {loading ? "Loading…" : `${rows.length} rows`}
+      </div>
 
       {/* Add row */}
       <div style={{ padding: 12, borderRadius: 12, border: "1px solid rgba(255,255,255,0.15)", marginBottom: 16 }}>
@@ -264,7 +295,6 @@ function RowEditor(props: {
           />
         </td>
       ))}
-
       <td style={{ padding: 8, borderBottom: "1px solid rgba(255,255,255,0.08)", textAlign: "right" }}>
         <button onClick={() => onSave(pkValue, edit)} style={{ padding: "6px 10px" }}>
           Save
