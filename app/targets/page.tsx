@@ -192,10 +192,6 @@ export default function TargetsPage() {
         <button className="btn-primary" onClick={() => router.push("/sessions/new")}>
           New Session
         </button>
-
-        <Link href="/maintenance" className="btn-ghost">
-          Maintenance
-        </Link>
       </div>
 
       {body}

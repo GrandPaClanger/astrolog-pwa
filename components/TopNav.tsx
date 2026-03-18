@@ -20,7 +20,7 @@ export function TopNav() {
     <header className="border-b border-slate-700 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
         <div className="flex items-center gap-6">
-          <Link href="/targets" className="flex items-center gap-2 text-slate-100 font-semibold text-sm">
+          <Link href="/" className="flex items-center gap-2 text-slate-100 font-semibold text-sm">
             <svg width="20" height="20" viewBox="0 0 192 192" className="shrink-0">
               <rect width="192" height="192" rx="28" fill="#0f172a"/>
               <g transform="translate(94,84) rotate(-25)">
@@ -41,6 +41,9 @@ export function TopNav() {
             </Link>
             <Link href="/sessions/new" className="text-slate-400 hover:text-slate-100 transition-colors">
               New Session
+            </Link>
+            <Link href="/flat-wizard" className="text-slate-400 hover:text-slate-100 transition-colors">
+              Flat Wizard
             </Link>
           </nav>
         </div>
