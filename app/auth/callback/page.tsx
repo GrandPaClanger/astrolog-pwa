@@ -24,7 +24,7 @@ export default function AuthCallbackPage() {
               router.replace("/login?error=auth");
             } else {
               await supabase.rpc("ensure_person");
-              router.replace("/targets");
+              router.replace("/");
             }
           }
           return;
@@ -45,7 +45,7 @@ export default function AuthCallbackPage() {
                 router.replace("/login?error=auth");
               } else {
                 await supabase.rpc("ensure_person");
-                router.replace("/targets");
+                router.replace("/");
               }
             }
             return;
@@ -56,7 +56,7 @@ export default function AuthCallbackPage() {
         const { data } = await supabase.auth.getSession();
         if (!cancelled) {
           if (data.session) {
-            router.replace("/targets");
+            router.replace("/");
           } else {
             router.replace("/login");
           }
