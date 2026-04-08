@@ -8,10 +8,11 @@ import { supabase } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 
 const NAV_CARDS = [
-  { href: "/targets",      label: "Targets",      desc: "Browse and manage your astronomical targets" },
-  { href: "/sessions/new", label: "New Session",  desc: "Log a new imaging session" },
-  { href: "/maintenance",  label: "Maintenance",  desc: "Manage equipment lists and lookup data" },
-  { href: "/flat-wizard",  label: "Flat Wizard",  desc: "NINA flat wizard settings by telescope and camera" },
+  { href: "/targets",          label: "Targets",          desc: "Browse and manage your astronomical targets" },
+  { href: "/sessions/new",     label: "New Session",      desc: "Log a new imaging session" },
+  { href: "/maintenance",      label: "Maintenance",      desc: "Manage equipment lists and lookup data" },
+  { href: "/flat-wizard",      label: "Flat Wizard",      desc: "NINA flat wizard settings by telescope and camera" },
+  { href: "/focus-positions",  label: "Focus Positions",  desc: "Record focuser positions by telescope" },
 ];
 
 export default function HomePage() {

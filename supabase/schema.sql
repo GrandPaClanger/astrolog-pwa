@@ -242,7 +242,22 @@ create index if not exists ix_file_asset_person on public.file_asset(person_id);
 create index if not exists ix_file_asset_best on public.file_asset(target_id, is_best) where is_best = true;
 
 -- =============
--- 4) Updated-at triggers
+-- 4) Focus position log
+-- =============
+
+create table if not exists public.focus_position (
+  focus_position_id  bigserial primary key,
+  person_id          bigint not null references public.person(person_id) on delete cascade,
+  telescope_description varchar(50) not null,
+  position           integer not null check (position >= 0 and position <= 99999),
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
+);
+
+create index if not exists ix_focus_position_person on public.focus_position(person_id);
+
+-- =============
+-- 5) Updated-at triggers
 -- =============
 
 create or replace function public.set_updated_at()
@@ -357,6 +372,16 @@ create trigger trg_file_asset_person
 before insert on public.file_asset
 for each row execute function public.set_person_id_from_auth();
 
+drop trigger if exists trg_focus_position_person on public.focus_position;
+create trigger trg_focus_position_person
+before insert on public.focus_position
+for each row execute function public.set_person_id_from_auth();
+
+drop trigger if exists trg_focus_position_updated_at on public.focus_position;
+create trigger trg_focus_position_updated_at
+before update on public.focus_position
+for each row execute function public.set_updated_at();
+
 -- =============
 -- 6) Row Level Security (RLS)
 -- =============
@@ -433,6 +458,16 @@ alter table public.file_asset enable row level security;
 drop policy if exists "file_asset_crud_own" on public.file_asset;
 create policy "file_asset_crud_own"
 on public.file_asset
+to authenticated
+using (person_id = public.current_person_id())
+with check (person_id = public.current_person_id());
+
+-- focus_position
+alter table public.focus_position enable row level security;
+
+drop policy if exists "focus_position_crud_own" on public.focus_position;
+create policy "focus_position_crud_own"
+on public.focus_position
 to authenticated
 using (person_id = public.current_person_id())
 with check (person_id = public.current_person_id());
