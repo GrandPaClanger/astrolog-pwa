@@ -16,6 +16,14 @@ type Item = {
   sort_order: number;
 };
 
+type Category = { slug: string; label: string };
+
+type PastEvent = {
+  event_id: number;
+  name: string;
+  date_from: string;
+};
+
 const iStyle: React.CSSProperties = {
   width: "100%",
   padding: "12px",
@@ -36,11 +44,20 @@ const lStyle: React.CSSProperties = {
   letterSpacing: "0.05em",
 };
 
+function fmtYear(d: string) {
+  return new Date(d + "T00:00:00").getFullYear();
+}
+
 export default function NewEventPage() {
   const router = useRouter();
+
+  const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [pastEvents, setPastEvents] = useState<PastEvent[]>([]);
+  const [copyFromId, setCopyFromId] = useState<string>("");
   const [loadingItems, setLoadingItems] = useState(true);
+  const [loadingCopy, setLoadingCopy] = useState(false);
 
   const [eventName, setEventName] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -49,14 +66,21 @@ export default function NewEventPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadItems() {
+  async function loadAll() {
     setLoadingItems(true);
+    const [catRes, evRes] = await Promise.all([
+      supabase.from("star_party_category").select("slug, label").order("sort_order"),
+      supabase.from("star_party_event").select("event_id, name, date_from").order("date_from", { ascending: false }),
+    ]);
+    setCategories((catRes.data as Category[]) ?? []);
+    setPastEvents((evRes.data as PastEvent[]) ?? []);
+
     let { data } = await supabase
       .from("star_party_item")
       .select("item_id, name, category, sub_category, sort_order")
       .order("category")
       .order("sub_category", { nullsFirst: true })
-      .order("sort_order");
+      .order("name");
 
     let rows = (data as Item[]) ?? [];
 
@@ -76,7 +100,7 @@ export default function NewEventPage() {
           .select("item_id, name, category, sub_category, sort_order")
           .order("category")
           .order("sub_category", { nullsFirst: true })
-          .order("sort_order");
+          .order("name");
         rows = (d2 as Item[]) ?? [];
       }
     }
@@ -86,7 +110,26 @@ export default function NewEventPage() {
     setLoadingItems(false);
   }
 
-  useEffect(() => { loadItems(); }, []);
+  useEffect(() => { loadAll(); }, []);
+
+  async function handleCopyFrom(eventId: string) {
+    setCopyFromId(eventId);
+    if (!eventId) {
+      // Revert to all checked
+      setChecked(new Set(items.map(i => i.item_id)));
+      return;
+    }
+    setLoadingCopy(true);
+    const { data } = await supabase
+      .from("star_party_plan_item")
+      .select("item_id")
+      .eq("event_id", Number(eventId));
+    const ids = new Set((data ?? []).map((r: { item_id: number }) => r.item_id));
+    // Only keep ids that exist in the current master item list
+    const validIds = new Set(items.filter(i => ids.has(i.item_id)).map(i => i.item_id));
+    setChecked(validIds);
+    setLoadingCopy(false);
+  }
 
   function toggleItem(id: number) {
     setChecked(prev => {
@@ -97,10 +140,10 @@ export default function NewEventPage() {
     });
   }
 
-  function toggleCategory(cat: string, check: boolean) {
+  function toggleCategory(slug: string, check: boolean) {
     setChecked(prev => {
       const next = new Set(prev);
-      items.filter(i => (i.category === cat)).forEach(i => {
+      items.filter(i => i.category === slug).forEach(i => {
         if (check) next.add(i.item_id);
         else next.delete(i.item_id);
       });
@@ -118,7 +161,6 @@ export default function NewEventPage() {
     setSaving(true);
     setError(null);
 
-    // If marking as current, clear others first
     if (isCurrent) {
       await supabase.from("star_party_event").update({ is_current: false }).eq("is_current", true);
     }
@@ -131,30 +173,29 @@ export default function NewEventPage() {
 
     if (evErr || !ev) { setError(evErr?.message ?? "Failed to create event."); setSaving(false); return; }
 
-    const planItems = Array.from(checked).map(item_id => ({
-      event_id: ev.event_id,
-      item_id,
-      status: "to_pick",
-    }));
-
-    const { error: piErr } = await supabase.from("star_party_plan_item").insert(planItems);
+    const { error: piErr } = await supabase.from("star_party_plan_item").insert(
+      Array.from(checked).map(item_id => ({ event_id: ev.event_id, item_id, status: "to_pick" }))
+    );
     if (piErr) { setError(piErr.message); setSaving(false); return; }
 
     router.push(`/star-party/events/${ev.event_id}`);
   }
 
-  // Group items
-  const camping = items.filter(i => i.category === "camping");
-  const astro = items.filter(i => i.category === "astro");
-  const astroSubs: Record<string, Item[]> = {};
-  for (const item of astro) {
-    const sub = item.sub_category ?? "General";
-    if (!astroSubs[sub]) astroSubs[sub] = [];
-    astroSubs[sub].push(item);
+  // Dynamic grouping: category slug → sub_category → items
+  const catOrder = categories.map(c => c.slug);
+  const grouped: Record<string, Record<string, Item[]>> = {};
+  for (const item of items) {
+    const cat = item.category;
+    const sub = item.sub_category ?? "(No sub-category)";
+    if (!grouped[cat]) grouped[cat] = {};
+    if (!grouped[cat][sub]) grouped[cat][sub] = [];
+    grouped[cat][sub].push(item);
   }
-
-  const campingAllChecked = camping.length > 0 && camping.every(i => checked.has(i.item_id));
-  const astroAllChecked = astro.length > 0 && astro.every(i => checked.has(i.item_id));
+  const sortedCatSlugs = Object.keys(grouped).sort((a, b) => {
+    const ai = catOrder.indexOf(a);
+    const bi = catOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
 
   const checkboxStyle = (chk: boolean): React.CSSProperties => ({
     width: 22,
@@ -194,84 +235,92 @@ export default function NewEventPage() {
           </div>
         </div>
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}>
-          <div
-            style={checkboxStyle(isCurrent)}
-            onClick={() => setIsCurrent(v => !v)}
-          >
+          <div style={checkboxStyle(isCurrent)} onClick={() => setIsCurrent(v => !v)}>
             {isCurrent && <span style={{ color: "white", fontSize: 14, fontWeight: 700, lineHeight: 1 }}>✓</span>}
           </div>
           <span style={{ fontSize: 14 }}>Mark as Current Plan</span>
         </label>
       </div>
 
+      {/* Copy from previous event */}
+      {pastEvents.length > 0 && (
+        <div style={{ border: "1px solid rgba(59,130,246,0.3)", borderRadius: 12, padding: "16px", marginBottom: 24, background: "rgba(59,130,246,0.05)" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Copy items from a previous event</div>
+          <div style={{ fontSize: 12, opacity: 0.55, marginBottom: 12 }}>
+            Pre-select the same items as a past trip, then adjust as needed.
+          </div>
+          <select
+            style={iStyle}
+            value={copyFromId}
+            onChange={e => handleCopyFrom(e.target.value)}
+            disabled={loadingItems}
+          >
+            <option value="">— Start with all items selected —</option>
+            {pastEvents.map(ev => (
+              <option key={ev.event_id} value={String(ev.event_id)}>
+                {ev.name} ({fmtYear(ev.date_from)})
+              </option>
+            ))}
+          </select>
+          {loadingCopy && <p style={{ fontSize: 12, opacity: 0.6, marginTop: 8, marginBottom: 0 }}>Loading items from previous event…</p>}
+        </div>
+      )}
+
       {/* Item Selection */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Select Items for this Plan</div>
         <div style={{ fontSize: 12, opacity: 0.55, marginBottom: 16 }}>
-          All items are included by default. Uncheck anything you don&apos;t need — unchecked items won&apos;t be added to the plan.
+          {copyFromId
+            ? "Items from the selected event are pre-checked. Adjust as needed."
+            : "All items are included by default. Uncheck anything you don't need."}
         </div>
 
         {loadingItems ? (
           <p style={{ opacity: 0.6 }}>Loading items…</p>
         ) : (
-          <>
-            {/* Camping Gear */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#93c5fd" }}>Camping Gear</span>
-                <button
-                  onClick={() => toggleCategory("camping", !campingAllChecked)}
-                  style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "white", cursor: "pointer" }}
-                >
-                  {campingAllChecked ? "Uncheck All" : "Check All"}
-                </button>
-              </div>
-              {camping.map(item => (
-                <div
-                  key={item.item_id}
-                  onClick={() => toggleItem(item.item_id)}
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", minHeight: 48 }}
-                >
-                  <div style={checkboxStyle(checked.has(item.item_id))}>
-                    {checked.has(item.item_id) && <span style={{ color: "white", fontSize: 14, fontWeight: 700, lineHeight: 1 }}>✓</span>}
-                  </div>
-                  <span style={{ fontSize: 15 }}>{item.name}</span>
+          sortedCatSlugs.map(slug => {
+            const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
+            const subs = grouped[slug];
+            const catItems = items.filter(i => i.category === slug);
+            const allChecked = catItems.length > 0 && catItems.every(i => checked.has(i.item_id));
+            const sortedSubs = Object.keys(subs).sort((a, b) =>
+              a === "(No sub-category)" ? -1 : b === "(No sub-category)" ? 1 : a.localeCompare(b)
+            );
+            return (
+              <div key={slug} style={{ marginBottom: 24 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "#93c5fd" }}>{catLabel}</span>
+                  <button
+                    onClick={() => toggleCategory(slug, !allChecked)}
+                    style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "white", cursor: "pointer" }}
+                  >
+                    {allChecked ? "Uncheck All" : "Check All"}
+                  </button>
                 </div>
-              ))}
-            </div>
-
-            {/* Astro Gear */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#93c5fd" }}>Astro Gear</span>
-                <button
-                  onClick={() => toggleCategory("astro", !astroAllChecked)}
-                  style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "white", cursor: "pointer" }}
-                >
-                  {astroAllChecked ? "Uncheck All" : "Check All"}
-                </button>
-              </div>
-              {Object.entries(astroSubs).map(([sub, subItems]) => (
-                <div key={sub} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 4px", textTransform: "uppercase" }}>
-                    {sub}
-                  </div>
-                  {subItems.map(item => (
-                    <div
-                      key={item.item_id}
-                      onClick={() => toggleItem(item.item_id)}
-                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 4px 11px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", minHeight: 48 }}
-                    >
-                      <div style={checkboxStyle(checked.has(item.item_id))}>
-                        {checked.has(item.item_id) && <span style={{ color: "white", fontSize: 14, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+                {sortedSubs.map(sub => (
+                  <div key={sub} style={{ marginBottom: 12 }}>
+                    {sub !== "(No sub-category)" && (
+                      <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 4px", textTransform: "uppercase" }}>
+                        {sub}
                       </div>
-                      <span style={{ fontSize: 15 }}>{item.name}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </>
+                    )}
+                    {subs[sub].map(item => (
+                      <div
+                        key={item.item_id}
+                        onClick={() => toggleItem(item.item_id)}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: `11px 4px 11px ${sub !== "(No sub-category)" ? 16 : 4}px`, borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", minHeight: 48 }}
+                      >
+                        <div style={checkboxStyle(checked.has(item.item_id))}>
+                          {checked.has(item.item_id) && <span style={{ color: "white", fontSize: 14, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize: 15 }}>{item.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
+          })
         )}
       </div>
 
