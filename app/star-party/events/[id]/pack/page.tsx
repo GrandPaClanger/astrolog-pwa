@@ -150,7 +150,6 @@ export default function ToPackPage() {
                     <span style={{ color: "#93c5fd", fontSize: 14, fontWeight: 700 }}>✓</span>
                   </div>
                   <span style={{ fontSize: 16 }}>{pi.star_party_item.name}</span>
-                  <span style={{ marginLeft: "auto", fontSize: 11, color: "#93c5fd", opacity: 0.7 }}>Picked</span>
                 </div>
               ))}
             </div>
@@ -178,7 +177,6 @@ export default function ToPackPage() {
                         <span style={{ color: "#93c5fd", fontSize: 14, fontWeight: 700 }}>✓</span>
                       </div>
                       <span style={{ fontSize: 16 }}>{pi.star_party_item.name}</span>
-                      <span style={{ marginLeft: "auto", fontSize: 11, color: "#93c5fd", opacity: 0.7 }}>Picked</span>
                     </div>
                   ))}
                 </div>
