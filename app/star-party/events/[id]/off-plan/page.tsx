@@ -90,12 +90,12 @@ export default function OffPlanPage() {
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
-    padding: "10px 4px",
+    padding: "8px 2px",
     borderRadius: 8,
     border: `1px solid ${active ? "rgba(59,130,246,0.6)" : "rgba(255,255,255,0.15)"}`,
     background: active ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.04)",
     color: active ? "#93c5fd" : "white",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: active ? 700 : 500,
     textAlign: "center" as const,
     textDecoration: "none",
@@ -131,11 +131,12 @@ export default function OffPlanPage() {
       <h1 style={{ marginBottom: 2 }}>Not on This Plan</h1>
       {event && <p style={{ fontSize: 13, opacity: 0.55, marginTop: 4, marginBottom: 16 }}>{event.name}</p>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginBottom: 20 }}>
         <Link href={`/star-party/events/${id}`} style={tabStyle(false)}>Required</Link>
         <Link href={`/star-party/events/${id}/pick`} style={tabStyle(false)}>To Pick</Link>
         <Link href={`/star-party/events/${id}/pack`} style={tabStyle(false)}>To Pack</Link>
-        <span style={tabStyle(true)}>Not on Plan</span>
+        <Link href={`/star-party/events/${id}/load`} style={tabStyle(false)}>To Load</Link>
+        <span style={tabStyle(true)}>Off Plan</span>
       </div>
 
       {loading ? (

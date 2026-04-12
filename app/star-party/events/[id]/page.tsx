@@ -18,6 +18,7 @@ type SPEvent = {
 type PlanItem = {
   plan_item_id: number;
   status: "to_pick" | "picked" | "packed";
+  container_id: number | null;
   star_party_item: {
     item_id: number;
     name: string;
@@ -25,6 +26,7 @@ type PlanItem = {
     sub_category: string | null;
     sort_order: number;
   };
+  star_party_container: { name: string } | null;
 };
 
 type Category = { slug: string; label: string };
@@ -73,7 +75,7 @@ export default function RequiredItemsPage() {
       supabase.from("star_party_category").select("slug, label").order("sort_order"),
       supabase
         .from("star_party_plan_item")
-        .select("plan_item_id, status, star_party_item(item_id, name, category, sub_category, sort_order)")
+        .select("plan_item_id, status, container_id, star_party_item(item_id, name, category, sub_category, sort_order), star_party_container(name)")
         .eq("event_id", id)
         .order("status"),
     ]);
@@ -131,12 +133,12 @@ export default function RequiredItemsPage() {
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
-    padding: "10px 4px",
+    padding: "8px 2px",
     borderRadius: 8,
     border: `1px solid ${active ? "rgba(59,130,246,0.6)" : "rgba(255,255,255,0.15)"}`,
     background: active ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.04)",
     color: active ? "#93c5fd" : "white",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: active ? 700 : 500,
     textAlign: "center" as const,
     textDecoration: "none",
@@ -145,8 +147,9 @@ export default function RequiredItemsPage() {
 
   return (
     <main style={{ padding: "16px", maxWidth: 600, margin: "0 auto", paddingBottom: 40 }}>
-      <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <Link href="/star-party" style={{ fontSize: 13, opacity: 0.6, textDecoration: "none" }}>← Star Parties</Link>
+        <Link href={`/star-party/events/${id}/print`} style={{ fontSize: 13, opacity: 0.6, textDecoration: "none" }}>🖨 Packing List</Link>
       </div>
 
       <div style={{ marginBottom: 16 }}>
@@ -165,11 +168,12 @@ export default function RequiredItemsPage() {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginBottom: 20 }}>
         <span style={tabStyle(true)}>Required</span>
         <Link href={`/star-party/events/${id}/pick`} style={tabStyle(false)}>To Pick</Link>
         <Link href={`/star-party/events/${id}/pack`} style={tabStyle(false)}>To Pack</Link>
-        <Link href={`/star-party/events/${id}/off-plan`} style={tabStyle(false)}>Not on Plan</Link>
+        <Link href={`/star-party/events/${id}/load`} style={tabStyle(false)}>To Load</Link>
+        <Link href={`/star-party/events/${id}/off-plan`} style={tabStyle(false)}>Off Plan</Link>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 24 }}>
@@ -209,11 +213,18 @@ export default function RequiredItemsPage() {
                   {subs[sub].map(pi => (
                     <div
                       key={pi.plan_item_id}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: `11px 4px 11px ${sub !== "(No sub-category)" ? 16 : 4}px`, borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: `11px 4px 11px ${sub !== "(No sub-category)" ? 16 : 4}px`, borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
                     >
-                      <span style={{ fontSize: 15 }}>{pi.star_party_item.name}</span>
+                      <div>
+                        <div style={{ fontSize: 15 }}>{pi.star_party_item.name}</div>
+                        {pi.status === "packed" && (
+                          <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>
+                            {pi.star_party_container ? pi.star_party_container.name : "Loose"}
+                          </div>
+                        )}
+                      </div>
                       {pi.status === "to_pick" ? (
-                        <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                        <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
                           {STATUS_LABEL[pi.status]}
                         </span>
                       ) : (
@@ -221,7 +232,7 @@ export default function RequiredItemsPage() {
                           onClick={() => undoStatus(pi)}
                           disabled={updating.has(pi.plan_item_id)}
                           title={UNDO_LABEL[pi.status]}
-                          style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
+                          style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1, flexShrink: 0 }}
                         >
                           {STATUS_LABEL[pi.status]}
                           <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>

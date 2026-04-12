@@ -7,110 +7,160 @@ import { supabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
-type PlanItem = {
+type PickedItem = {
   plan_item_id: number;
-  status: string;
-  star_party_item: {
-    item_id: number;
-    name: string;
-    category: string;
-    sub_category: string | null;
-    sort_order: number;
-  };
+  star_party_item: { item_id: number; name: string; category: string; sub_category: string | null };
 };
 
-type Category = { slug: string; label: string };
-type EventMeta = { name: string; is_current: boolean };
+type PackedItem = {
+  plan_item_id: number;
+  container_id: number | null;
+  star_party_item: { name: string };
+};
+
+type Container = {
+  container_id: number;
+  container_type_id: number;
+  number: number;
+  name: string;
+  star_party_container_type: { name: string };
+};
+
+type ContainerType = { container_type_id: number; name: string };
+type EventMeta = { name: string };
+
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  flex: 1,
+  padding: "8px 2px",
+  borderRadius: 8,
+  border: `1px solid ${active ? "rgba(59,130,246,0.6)" : "rgba(255,255,255,0.15)"}`,
+  background: active ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.04)",
+  color: active ? "#93c5fd" : "white",
+  fontSize: 11,
+  fontWeight: active ? 700 : 500,
+  textAlign: "center" as const,
+  textDecoration: "none",
+  display: "block",
+});
 
 export default function ToPackPage() {
   const params = useParams();
   const id = params.id as string;
 
   const [event, setEvent] = useState<EventMeta | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [items, setItems] = useState<PlanItem[]>([]);
+  const [pickedItems, setPickedItems] = useState<PickedItem[]>([]);
+  const [packedItems, setPackedItems] = useState<PackedItem[]>([]);
+  const [containers, setContainers] = useState<Container[]>([]);
+  const [containerTypes, setContainerTypes] = useState<ContainerType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState<Set<number>>(new Set());
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [editingContainerId, setEditingContainerId] = useState<number | null>(null);
+  const [containerNameDraft, setContainerNameDraft] = useState("");
+  const [packing, setPacking] = useState<Set<number>>(new Set());
+
+  async function loadPacked() {
+    const [packedRes, containersRes] = await Promise.all([
+      supabase
+        .from("star_party_plan_item")
+        .select("plan_item_id, container_id, star_party_item(name)")
+        .eq("event_id", id)
+        .eq("status", "packed"),
+      supabase
+        .from("star_party_container")
+        .select("container_id, container_type_id, number, name, star_party_container_type(name)")
+        .eq("event_id", id)
+        .order("container_type_id")
+        .order("number"),
+    ]);
+    setPackedItems((packedRes.data as unknown as PackedItem[]) ?? []);
+    setContainers((containersRes.data as unknown as Container[]) ?? []);
+  }
 
   async function load() {
     setLoading(true);
-    const [evRes, catRes, piRes] = await Promise.all([
-      supabase.from("star_party_event").select("name, is_current").eq("event_id", id).single(),
-      supabase.from("star_party_category").select("slug, label").order("sort_order"),
+    const [evRes, pickedRes, typesRes] = await Promise.all([
+      supabase.from("star_party_event").select("name").eq("event_id", id).single(),
       supabase
         .from("star_party_plan_item")
-        .select("plan_item_id, status, star_party_item(item_id, name, category, sub_category, sort_order)")
+        .select("plan_item_id, star_party_item(item_id, name, category, sub_category)")
         .eq("event_id", id)
         .eq("status", "picked"),
+      supabase
+        .from("star_party_container_type")
+        .select("container_type_id, name")
+        .order("sort_order"),
     ]);
     setEvent(evRes.data as EventMeta ?? null);
-    setCategories((catRes.data as Category[]) ?? []);
-    setItems((piRes.data as unknown as PlanItem[]) ?? []);
+    setPickedItems((pickedRes.data as unknown as PickedItem[]) ?? []);
+    setContainerTypes((typesRes.data as ContainerType[]) ?? []);
+    await loadPacked();
     setLoading(false);
   }
 
   useEffect(() => { load(); }, [id]);
 
-  async function markPacked(pi: PlanItem) {
-    setUpdating(prev => new Set(prev).add(pi.plan_item_id));
-    setItems(prev => prev.filter(p => p.plan_item_id !== pi.plan_item_id));
-    const { error: err } = await supabase
+  async function createContainer(typeId: number, typeName: string): Promise<number | null> {
+    const { data: maxData } = await supabase
+      .from("star_party_container")
+      .select("number")
+      .eq("event_id", Number(id))
+      .eq("container_type_id", typeId)
+      .order("number", { ascending: false })
+      .limit(1);
+    const nextNum = (maxData?.[0]?.number ?? 0) + 1;
+    const { data, error } = await supabase
+      .from("star_party_container")
+      .insert({ event_id: Number(id), container_type_id: typeId, number: nextNum, name: `${typeName} ${nextNum}` })
+      .select("container_id")
+      .single();
+    if (error) { alert(error.message); return null; }
+    return data.container_id;
+  }
+
+  async function packItem(planItemId: number, containerId: number | null) {
+    setPacking(prev => new Set(prev).add(planItemId));
+    setPickedItems(prev => prev.filter(p => p.plan_item_id !== planItemId));
+    setExpandedId(null);
+    const { error } = await supabase
       .from("star_party_plan_item")
-      .update({ status: "packed" })
-      .eq("plan_item_id", pi.plan_item_id);
-    if (err) {
-      setItems(prev => [...prev, pi].sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name)));
-      alert(err.message);
-    }
-    setUpdating(prev => { const n = new Set(prev); n.delete(pi.plan_item_id); return n; });
+      .update({ status: "packed", container_id: containerId })
+      .eq("plan_item_id", planItemId);
+    if (error) { alert(error.message); }
+    await loadPacked();
+    setPacking(prev => { const n = new Set(prev); n.delete(planItemId); return n; });
   }
 
-  // Dynamic grouping
-  const catOrder = categories.map(c => c.slug);
-  const grouped: Record<string, Record<string, PlanItem[]>> = {};
-  for (const pi of items) {
-    const cat = pi.star_party_item.category;
-    const sub = pi.star_party_item.sub_category ?? "(No sub-category)";
-    if (!grouped[cat]) grouped[cat] = {};
-    if (!grouped[cat][sub]) grouped[cat][sub] = [];
-    grouped[cat][sub].push(pi);
-  }
-  for (const cat of Object.keys(grouped)) {
-    for (const sub of Object.keys(grouped[cat])) {
-      grouped[cat][sub].sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name));
+  async function handleChipTap(planItemId: number, chip: "loose" | { containerId: number } | { typeId: number; typeName: string }) {
+    if (chip === "loose") {
+      await packItem(planItemId, null);
+    } else if ("containerId" in chip) {
+      await packItem(planItemId, chip.containerId);
+    } else {
+      // New container
+      const newId = await createContainer(chip.typeId, chip.typeName);
+      if (newId !== null) {
+        await packItem(planItemId, newId);
+      }
     }
   }
-  const sortedCatSlugs = Object.keys(grouped).sort((a, b) => {
-    const ai = catOrder.indexOf(a);
-    const bi = catOrder.indexOf(b);
-    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-  });
 
-  const tabStyle = (active: boolean): React.CSSProperties => ({
-    flex: 1,
-    padding: "10px 4px",
-    borderRadius: 8,
-    border: `1px solid ${active ? "rgba(59,130,246,0.6)" : "rgba(255,255,255,0.15)"}`,
-    background: active ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.04)",
-    color: active ? "#93c5fd" : "white",
-    fontSize: 12,
-    fontWeight: active ? 700 : 500,
-    textAlign: "center" as const,
-    textDecoration: "none",
-    display: "block",
-  });
+  async function saveContainerName(containerId: number, name: string) {
+    if (!name.trim()) return;
+    await supabase.from("star_party_container").update({ name: name.trim() }).eq("container_id", containerId);
+    setContainers(prev => prev.map(c => c.container_id === containerId ? { ...c, name: name.trim() } : c));
+  }
 
-  const rowStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 14,
-    padding: "14px 4px",
-    borderBottom: "1px solid rgba(255,255,255,0.07)",
-    cursor: "pointer",
-    minHeight: 56,
-    userSelect: "none",
-    WebkitTapHighlightColor: "transparent",
-  };
+  if (loading) return <main style={{ padding: 16 }}><p style={{ opacity: 0.6 }}>Loading…</p></main>;
+
+  // Group packed items by container_id
+  const loosePackedItems = packedItems.filter(p => p.container_id === null);
+  const itemsByContainer: Record<number, PackedItem[]> = {};
+  for (const pi of packedItems) {
+    if (pi.container_id !== null) {
+      if (!itemsByContainer[pi.container_id]) itemsByContainer[pi.container_id] = [];
+      itemsByContainer[pi.container_id].push(pi);
+    }
+  }
 
   return (
     <main style={{ padding: "16px", maxWidth: 600, margin: "0 auto", paddingBottom: 40 }}>
@@ -121,74 +171,206 @@ export default function ToPackPage() {
       <h1 style={{ marginBottom: 2 }}>To Pack</h1>
       {event && <p style={{ fontSize: 13, opacity: 0.55, marginTop: 4, marginBottom: 16 }}>{event.name}</p>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginBottom: 20 }}>
         <Link href={`/star-party/events/${id}`} style={tabStyle(false)}>Required</Link>
         <Link href={`/star-party/events/${id}/pick`} style={tabStyle(false)}>To Pick</Link>
         <span style={tabStyle(true)}>To Pack</span>
-        <Link href={`/star-party/events/${id}/off-plan`} style={tabStyle(false)}>Not on Plan</Link>
+        <Link href={`/star-party/events/${id}/load`} style={tabStyle(false)}>To Load</Link>
+        <Link href={`/star-party/events/${id}/off-plan`} style={tabStyle(false)}>Off Plan</Link>
       </div>
 
-      {loading ? (
-        <p style={{ opacity: 0.6 }}>Loading…</p>
-      ) : items.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "48px 20px" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📦</div>
-          <p style={{ fontSize: 16, fontWeight: 600 }}>All packed!</p>
-          <p style={{ fontSize: 13, opacity: 0.55, marginBottom: 20 }}>No picked items waiting to be packed. Pick some items first.</p>
-          <Link href={`/star-party/events/${id}`} style={{ display: "inline-block", padding: "12px 24px", borderRadius: 10, background: "#3b82f6", color: "white", textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
-            View Required Items
-          </Link>
+      {/* TO PACK SECTION */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          To Pack ({pickedItems.length})
         </div>
-      ) : (
-        <>
-          <p style={{ fontSize: 13, opacity: 0.55, marginBottom: 16 }}>
-            Tap an item to mark it as packed. It will disappear from this list.
-          </p>
 
-          {sortedCatSlugs.map(slug => {
-            const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
-            const subs = grouped[slug];
-            const catTotal = Object.values(subs).reduce((n, arr) => n + arr.length, 0);
-            const sortedSubs = Object.keys(subs).sort((a, b) =>
-              a === "(No sub-category)" ? -1 : b === "(No sub-category)" ? 1 : a.localeCompare(b)
-            );
-            return (
-              <div key={slug} style={{ marginBottom: 28 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                  {catLabel} ({catTotal})
-                </div>
-                {sortedSubs.map(sub => (
-                  <div key={sub} style={{ marginBottom: 10 }}>
-                    {sub !== "(No sub-category)" && (
-                      <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 2px", textTransform: "uppercase" }}>
-                        {sub}
-                      </div>
-                    )}
-                    {subs[sub].map(pi => (
-                      <div
-                        key={pi.plan_item_id}
-                        style={{ ...rowStyle, paddingLeft: sub !== "(No sub-category)" ? 16 : 4 }}
-                        onClick={() => markPacked(pi)}
-                      >
-                        <div style={{
-                          width: 26, height: 26, borderRadius: 6,
-                          border: "2px solid #3b82f6",
-                          background: "rgba(59,130,246,0.15)", flexShrink: 0,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          opacity: updating.has(pi.plan_item_id) ? 0.4 : 1,
-                        }}>
-                          <span style={{ color: "#93c5fd", fontSize: 14, fontWeight: 700 }}>✓</span>
-                        </div>
-                        <span style={{ fontSize: 16 }}>{pi.star_party_item.name}</span>
-                      </div>
-                    ))}
+        {pickedItems.length === 0 ? (
+          <div style={{ padding: "24px 0", textAlign: "center" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>✓</div>
+            <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>All items packed!</p>
+            <p style={{ fontSize: 13, opacity: 0.55, margin: 0 }}>No picked items waiting to be packed.</p>
+          </div>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, opacity: 0.55, marginBottom: 12 }}>
+              Tap an item to choose where to pack it.
+            </p>
+            {pickedItems.map(pi => {
+              const isExpanded = expandedId === pi.plan_item_id;
+              const isBusy = packing.has(pi.plan_item_id);
+              return (
+                <div key={pi.plan_item_id}>
+                  <div
+                    onClick={() => !isBusy && setExpandedId(isExpanded ? null : pi.plan_item_id)}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "13px 4px", borderBottom: isExpanded ? "none" : "1px solid rgba(255,255,255,0.07)",
+                      cursor: isBusy ? "default" : "pointer", minHeight: 52,
+                      userSelect: "none", WebkitTapHighlightColor: "transparent",
+                      opacity: isBusy ? 0.5 : 1,
+                    }}
+                  >
+                    <span style={{ fontSize: 15 }}>{pi.star_party_item.name}</span>
+                    <span style={{ fontSize: 18, opacity: 0.5, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>›</span>
                   </div>
-                ))}
+
+                  {isExpanded && (
+                    <div style={{
+                      padding: "10px 4px 14px",
+                      borderBottom: "1px solid rgba(255,255,255,0.07)",
+                      overflowX: "auto",
+                    }}>
+                      <div style={{ display: "flex", gap: 8, paddingBottom: 4, minWidth: "max-content" }}>
+                        {/* Pack Loose */}
+                        <button
+                          onClick={() => handleChipTap(pi.plan_item_id, "loose")}
+                          style={{
+                            padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
+                            border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.08)",
+                            color: "white", cursor: "pointer", whiteSpace: "nowrap",
+                          }}
+                        >
+                          Pack Loose
+                        </button>
+
+                        {/* Existing containers */}
+                        {containers.map(c => (
+                          <button
+                            key={c.container_id}
+                            onClick={() => handleChipTap(pi.plan_item_id, { containerId: c.container_id })}
+                            style={{
+                              padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
+                              border: "1px solid rgba(99,179,237,0.5)", background: "rgba(59,130,246,0.15)",
+                              color: "#93c5fd", cursor: "pointer", whiteSpace: "nowrap",
+                            }}
+                          >
+                            {c.name}
+                          </button>
+                        ))}
+
+                        {/* New container buttons per type */}
+                        {containerTypes.map(ct => (
+                          <button
+                            key={ct.container_type_id}
+                            onClick={() => handleChipTap(pi.plan_item_id, { typeId: ct.container_type_id, typeName: ct.name })}
+                            style={{
+                              padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
+                              border: "1px dashed rgba(134,239,172,0.5)", background: "rgba(34,197,94,0.1)",
+                              color: "#86efac", cursor: "pointer", whiteSpace: "nowrap",
+                            }}
+                          >
+                            + New {ct.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
+      </div>
+
+      {/* PACKED SECTION */}
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#86efac", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          Packed ({packedItems.length})
+        </div>
+
+        {packedItems.length === 0 ? (
+          <p style={{ fontSize: 13, opacity: 0.5, padding: "8px 0" }}>Nothing packed yet.</p>
+        ) : (
+          <>
+            {/* Container cards */}
+            {containers.map(c => {
+              const cItems = itemsByContainer[c.container_id] ?? [];
+              if (cItems.length === 0) return null;
+              const isEditingName = editingContainerId === c.container_id;
+              return (
+                <div
+                  key={c.container_id}
+                  style={{
+                    borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.04)", padding: "12px 14px",
+                    marginBottom: 10,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    {isEditingName ? (
+                      <input
+                        autoFocus
+                        value={containerNameDraft}
+                        onChange={e => setContainerNameDraft(e.target.value)}
+                        onBlur={() => {
+                          saveContainerName(c.container_id, containerNameDraft);
+                          setEditingContainerId(null);
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            saveContainerName(c.container_id, containerNameDraft);
+                            setEditingContainerId(null);
+                          } else if (e.key === "Escape") {
+                            setEditingContainerId(null);
+                          }
+                        }}
+                        style={{
+                          flex: 1, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(59,130,246,0.5)",
+                          borderRadius: 6, padding: "4px 8px", color: "white", fontSize: 15, fontWeight: 600,
+                          outline: "none",
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <span style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>{c.name}</span>
+                        <button
+                          onClick={() => { setEditingContainerId(c.container_id); setContainerNameDraft(c.name); }}
+                          title="Rename"
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", color: "rgba(255,255,255,0.45)", fontSize: 15 }}
+                        >
+                          ✏️
+                        </button>
+                      </>
+                    )}
+                    <span style={{
+                      padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700,
+                      background: "rgba(34,197,94,0.2)", color: "#86efac",
+                    }}>
+                      {cItems.length} item{cItems.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.5 }}>
+                    {cItems.map(pi => pi.star_party_item.name).join(", ")}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Loose items */}
+            {loosePackedItems.length > 0 && (
+              <div style={{
+                borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.03)", padding: "12px 14px",
+                marginBottom: 10,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>Loose Items</span>
+                  <span style={{
+                    padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700,
+                    background: "rgba(251,191,36,0.2)", color: "#fbbf24",
+                  }}>
+                    {loosePackedItems.length} item{loosePackedItems.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.5 }}>
+                  {loosePackedItems.map(pi => pi.star_party_item.name).join(", ")}
+                </div>
               </div>
-            );
-          })}
-        </>
-      )}
+            )}
+          </>
+        )}
+      </div>
     </main>
   );
 }
