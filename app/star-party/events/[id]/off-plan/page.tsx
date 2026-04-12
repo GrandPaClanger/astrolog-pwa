@@ -15,6 +15,7 @@ type Item = {
   sort_order: number;
 };
 
+type Category = { slug: string; label: string };
 type EventMeta = { name: string; is_current: boolean };
 
 export default function OffPlanPage() {
@@ -22,6 +23,7 @@ export default function OffPlanPage() {
   const id = params.id as string;
 
   const [event, setEvent] = useState<EventMeta | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -29,12 +31,14 @@ export default function OffPlanPage() {
 
   async function load() {
     setLoading(true);
-    const [evRes, allItemsRes, planItemsRes] = await Promise.all([
+    const [evRes, catRes, allItemsRes, planItemsRes] = await Promise.all([
       supabase.from("star_party_event").select("name, is_current").eq("event_id", id).single(),
-      supabase.from("star_party_item").select("item_id, name, category, sub_category, sort_order").order("category").order("sub_category", { nullsFirst: true }).order("sort_order"),
+      supabase.from("star_party_category").select("slug, label").order("sort_order"),
+      supabase.from("star_party_item").select("item_id, name, category, sub_category, sort_order").order("category").order("sub_category", { nullsFirst: true }).order("sort_order").order("name"),
       supabase.from("star_party_plan_item").select("item_id").eq("event_id", id),
     ]);
     setEvent(evRes.data as EventMeta ?? null);
+    setCategories((catRes.data as Category[]) ?? []);
     const onPlanIds = new Set((planItemsRes.data ?? []).map((r: { item_id: number }) => r.item_id));
     const offPlan = ((allItemsRes.data as Item[]) ?? []).filter(i => !onPlanIds.has(i.item_id));
     setItems(offPlan);
@@ -53,37 +57,36 @@ export default function OffPlanPage() {
     });
   }
 
-  function selectAll() {
-    setSelected(new Set(items.map(i => i.item_id)));
-  }
-  function selectNone() {
-    setSelected(new Set());
-  }
+  function selectAll() { setSelected(new Set(items.map(i => i.item_id))); }
+  function selectNone() { setSelected(new Set()); }
 
   async function addToPlan() {
     if (selected.size === 0) return;
     setAdding(true);
     const { error: err } = await supabase.from("star_party_plan_item").insert(
-      Array.from(selected).map(item_id => ({
-        event_id: Number(id),
-        item_id,
-        status: "to_pick",
-      }))
+      Array.from(selected).map(item_id => ({ event_id: Number(id), item_id, status: "to_pick" }))
     );
     if (err) { alert(err.message); setAdding(false); return; }
     await load();
     setAdding(false);
   }
 
-  // Group
-  const camping = items.filter(i => i.category === "camping");
-  const astroItems = items.filter(i => i.category === "astro");
-  const astroSubs: Record<string, Item[]> = {};
-  for (const item of astroItems) {
-    const sub = item.sub_category ?? "General";
-    if (!astroSubs[sub]) astroSubs[sub] = [];
-    astroSubs[sub].push(item);
+  // Dynamic grouping: category slug → sub_category → items
+  const catOrder = categories.map(c => c.slug);
+  const grouped: Record<string, Record<string, Item[]>> = {};
+  for (const item of items) {
+    const cat = item.category;
+    const sub = item.sub_category ?? "(No sub-category)";
+    if (!grouped[cat]) grouped[cat] = {};
+    if (!grouped[cat][sub]) grouped[cat][sub] = [];
+    grouped[cat][sub].push(item);
   }
+  // Sort categories by DB sort_order, unknown categories appended last
+  const sortedCatSlugs = Object.keys(grouped).sort((a, b) => {
+    const ai = catOrder.indexOf(a);
+    const bi = catOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
@@ -132,7 +135,7 @@ export default function OffPlanPage() {
         <Link href={`/star-party/events/${id}`} style={tabStyle(false)}>Required</Link>
         <Link href={`/star-party/events/${id}/pick`} style={tabStyle(false)}>To Pick</Link>
         <Link href={`/star-party/events/${id}/pack`} style={tabStyle(false)}>To Pack</Link>
-        <span style={tabStyle(true)}>Off Plan</span>
+        <span style={tabStyle(true)}>Not on Plan</span>
       </div>
 
       {loading ? (
@@ -150,53 +153,46 @@ export default function OffPlanPage() {
               {items.length} item{items.length !== 1 ? "s" : ""} not on this plan
             </p>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={selectAll} style={{ padding: "5px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "white", cursor: "pointer" }}>
-                All
-              </button>
-              <button onClick={selectNone} style={{ padding: "5px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "white", cursor: "pointer" }}>
-                None
-              </button>
+              <button onClick={selectAll} style={{ padding: "5px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "white", cursor: "pointer" }}>All</button>
+              <button onClick={selectNone} style={{ padding: "5px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "white", cursor: "pointer" }}>None</button>
             </div>
           </div>
 
-          {camping.length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                Camping Gear
-              </div>
-              {camping.map(item => (
-                <div key={item.item_id} style={rowStyle} onClick={() => toggleItem(item.item_id)}>
-                  <div style={checkboxStyle(selected.has(item.item_id))}>
-                    {selected.has(item.item_id) && <span style={{ color: "white", fontSize: 14, fontWeight: 700 }}>✓</span>}
-                  </div>
-                  <span style={{ fontSize: 16 }}>{item.name}</span>
+          {sortedCatSlugs.map(slug => {
+            const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
+            const subs = grouped[slug];
+            const sortedSubs = Object.keys(subs).sort((a, b) =>
+              a === "(No sub-category)" ? -1 : b === "(No sub-category)" ? 1 : a.localeCompare(b)
+            );
+            return (
+              <div key={slug} style={{ marginBottom: 28 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  {catLabel}
                 </div>
-              ))}
-            </div>
-          )}
-
-          {Object.keys(astroSubs).length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                Astro Gear
-              </div>
-              {Object.entries(astroSubs).map(([sub, subItems]) => (
-                <div key={sub} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 2px", textTransform: "uppercase" }}>
-                    {sub}
-                  </div>
-                  {subItems.map(item => (
-                    <div key={item.item_id} style={{ ...rowStyle, paddingLeft: 16 }} onClick={() => toggleItem(item.item_id)}>
-                      <div style={checkboxStyle(selected.has(item.item_id))}>
-                        {selected.has(item.item_id) && <span style={{ color: "white", fontSize: 14, fontWeight: 700 }}>✓</span>}
+                {sortedSubs.map(sub => (
+                  <div key={sub} style={{ marginBottom: sub === "(No sub-category)" ? 0 : 10 }}>
+                    {sub !== "(No sub-category)" && (
+                      <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 2px", textTransform: "uppercase" }}>
+                        {sub}
                       </div>
-                      <span style={{ fontSize: 16 }}>{item.name}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
+                    )}
+                    {subs[sub].map(item => (
+                      <div
+                        key={item.item_id}
+                        style={{ ...rowStyle, paddingLeft: sub !== "(No sub-category)" ? 16 : 4 }}
+                        onClick={() => toggleItem(item.item_id)}
+                      >
+                        <div style={checkboxStyle(selected.has(item.item_id))}>
+                          {selected.has(item.item_id) && <span style={{ color: "white", fontSize: 14, fontWeight: 700 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize: 16 }}>{item.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </>
       )}
 
@@ -208,14 +204,9 @@ export default function OffPlanPage() {
               onClick={addToPlan}
               disabled={selected.size === 0 || adding}
               style={{
-                width: "100%",
-                padding: "14px",
-                borderRadius: 10,
-                border: "none",
+                width: "100%", padding: "14px", borderRadius: 10, border: "none",
                 background: selected.size === 0 ? "rgba(59,130,246,0.3)" : "#3b82f6",
-                color: "white",
-                fontSize: 16,
-                fontWeight: 600,
+                color: "white", fontSize: 16, fontWeight: 600,
                 cursor: selected.size === 0 ? "not-allowed" : "pointer",
               }}
             >

@@ -62,6 +62,7 @@ export default function StarPartyItemsPage() {
   const [subCatNew, setSubCatNew] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<number | null>(null);
 
   async function loadLookups() {
     const [catRes, subRes] = await Promise.all([
@@ -158,9 +159,16 @@ export default function StarPartyItemsPage() {
       const confirmed = confirm(`"${finalSub}" is a new sub-category. Create it?`);
       if (!confirmed) return;
 
+      const { data: maxData } = await supabase
+        .from("star_party_sub_category")
+        .select("sort_order")
+        .eq("category_slug", category)
+        .order("sort_order", { ascending: false })
+        .limit(1);
+      const nextSortOrder = (maxData?.[0]?.sort_order ?? 0) + 1;
       const { error: subErr } = await supabase
         .from("star_party_sub_category")
-        .insert({ category_slug: category, name: finalSub });
+        .insert({ category_slug: category, name: finalSub, sort_order: nextSortOrder });
       if (subErr && subErr.code !== "23505") {
         // 23505 = unique violation (already exists) — safe to ignore
         setError(subErr.message);
@@ -174,23 +182,27 @@ export default function StarPartyItemsPage() {
     setError(null);
     const payload = { name: name.trim(), category, sub_category: finalSub || null };
 
+    let savedItemId: number | null = editingId;
     if (editingId !== null) {
       const { error: err } = await supabase.from("star_party_item").update(payload).eq("item_id", editingId);
       if (err) { setError(err.message); setSaving(false); return; }
     } else {
-      const { error: err } = await supabase.from("star_party_item").insert(payload);
+      const { data: inserted, error: err } = await supabase.from("star_party_item").insert(payload).select("item_id").single();
       if (err) { setError(err.message); setSaving(false); return; }
+      savedItemId = inserted?.item_id ?? null;
     }
     closeForm();
-    await loadItems();
+    await load();
     setSaving(false);
+    setSavedId(savedItemId);
+    setTimeout(() => setSavedId(null), 2500);
   }
 
   async function onDelete(item: Item) {
     if (!confirm(`Delete "${item.name}"?`)) return;
     const { error: err } = await supabase.from("star_party_item").delete().eq("item_id", item.item_id);
     if (err) { alert(err.message); return; }
-    await loadItems();
+    await load();
   }
 
   // Group items: category label → sub_category → items

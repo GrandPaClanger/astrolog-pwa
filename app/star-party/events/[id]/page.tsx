@@ -27,6 +27,8 @@ type PlanItem = {
   };
 };
 
+type Category = { slug: string; label: string };
+
 function fmtDate(d: string) {
   const dt = new Date(d + "T00:00:00");
   return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -59,14 +61,16 @@ export default function RequiredItemsPage() {
   const id = params.id as string;
 
   const [event, setEvent] = useState<SPEvent | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<Set<number>>(new Set());
 
   async function load() {
     setLoading(true);
-    const [evRes, piRes] = await Promise.all([
+    const [evRes, catRes, piRes] = await Promise.all([
       supabase.from("star_party_event").select("event_id, name, date_from, date_to, is_current").eq("event_id", id).single(),
+      supabase.from("star_party_category").select("slug, label").order("sort_order"),
       supabase
         .from("star_party_plan_item")
         .select("plan_item_id, status, star_party_item(item_id, name, category, sub_category, sort_order)")
@@ -74,6 +78,7 @@ export default function RequiredItemsPage() {
         .order("status"),
     ]);
     setEvent(evRes.data as SPEvent ?? null);
+    setCategories((catRes.data as Category[]) ?? []);
     setPlanItems((piRes.data as unknown as PlanItem[]) ?? []);
     setLoading(false);
   }
@@ -82,14 +87,12 @@ export default function RequiredItemsPage() {
     const prev = PREV_STATUS[pi.status];
     if (!prev) return;
     setUpdating(s => new Set(s).add(pi.plan_item_id));
-    // Optimistic update
     setPlanItems(items => items.map(p => p.plan_item_id === pi.plan_item_id ? { ...p, status: prev } : p));
     const { error: err } = await supabase
       .from("star_party_plan_item")
       .update({ status: prev })
       .eq("plan_item_id", pi.plan_item_id);
     if (err) {
-      // Revert on error
       setPlanItems(items => items.map(p => p.plan_item_id === pi.plan_item_id ? { ...p, status: pi.status } : p));
       alert(err.message);
     }
@@ -105,20 +108,26 @@ export default function RequiredItemsPage() {
   const picked = planItems.filter(p => p.status === "picked").length;
   const packed = planItems.filter(p => p.status === "packed").length;
 
-  // Group by category → sub_category
-  const camping = planItems.filter(p => p.star_party_item.category === "camping")
-    .sort((a, b) => a.star_party_item.sort_order - b.star_party_item.sort_order);
-
-  const astroItems = planItems.filter(p => p.star_party_item.category === "astro");
-  const astroSubs: Record<string, PlanItem[]> = {};
-  for (const pi of astroItems) {
-    const sub = pi.star_party_item.sub_category ?? "General";
-    if (!astroSubs[sub]) astroSubs[sub] = [];
-    astroSubs[sub].push(pi);
+  // Dynamic grouping: category slug → sub_category → items
+  const catOrder = categories.map(c => c.slug);
+  const grouped: Record<string, Record<string, PlanItem[]>> = {};
+  for (const pi of planItems) {
+    const cat = pi.star_party_item.category;
+    const sub = pi.star_party_item.sub_category ?? "(No sub-category)";
+    if (!grouped[cat]) grouped[cat] = {};
+    if (!grouped[cat][sub]) grouped[cat][sub] = [];
+    grouped[cat][sub].push(pi);
   }
-  for (const sub of Object.keys(astroSubs)) {
-    astroSubs[sub].sort((a, b) => a.star_party_item.sort_order - b.star_party_item.sort_order);
+  for (const cat of Object.keys(grouped)) {
+    for (const sub of Object.keys(grouped[cat])) {
+      grouped[cat][sub].sort((a, b) => a.star_party_item.sort_order - b.star_party_item.sort_order);
+    }
   }
+  const sortedCatSlugs = Object.keys(grouped).sort((a, b) => {
+    const ai = catOrder.indexOf(a);
+    const bi = catOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
@@ -136,21 +145,15 @@ export default function RequiredItemsPage() {
 
   return (
     <main style={{ padding: "16px", maxWidth: 600, margin: "0 auto", paddingBottom: 40 }}>
-      {/* Back */}
       <div style={{ marginBottom: 14 }}>
         <Link href="/star-party" style={{ fontSize: 13, opacity: 0.6, textDecoration: "none" }}>← Star Parties</Link>
       </div>
 
-      {/* Event header */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <h1 style={{ margin: 0, fontSize: 20 }}>{event.name}</h1>
           <span style={{
-            display: "inline-block",
-            padding: "2px 8px",
-            borderRadius: 6,
-            fontSize: 11,
-            fontWeight: 600,
+            display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
             background: event.is_current ? "rgba(59,130,246,0.25)" : "rgba(255,255,255,0.1)",
             color: event.is_current ? "#93c5fd" : "#94a3b8",
           }}>
@@ -162,15 +165,13 @@ export default function RequiredItemsPage() {
         </p>
       </div>
 
-      {/* Nav tabs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 20 }}>
         <span style={tabStyle(true)}>Required</span>
         <Link href={`/star-party/events/${id}/pick`} style={tabStyle(false)}>To Pick</Link>
         <Link href={`/star-party/events/${id}/pack`} style={tabStyle(false)}>To Pack</Link>
-        <Link href={`/star-party/events/${id}/off-plan`} style={tabStyle(false)}>Off Plan</Link>
+        <Link href={`/star-party/events/${id}/off-plan`} style={tabStyle(false)}>Not on Plan</Link>
       </div>
 
-      {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 24 }}>
         {[
           { label: "To Pick", count: toPick, color: "#fbbf24" },
@@ -187,49 +188,29 @@ export default function RequiredItemsPage() {
       {planItems.length === 0 ? (
         <p style={{ opacity: 0.6 }}>No items on this plan.</p>
       ) : (
-        <>
-          {/* Camping Gear */}
-          {camping.length > 0 && (
-            <div style={{ marginBottom: 28 }}>
+        sortedCatSlugs.map(slug => {
+          const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
+          const subs = grouped[slug];
+          const sortedSubs = Object.keys(subs).sort((a, b) =>
+            a === "(No sub-category)" ? -1 : b === "(No sub-category)" ? 1 : a.localeCompare(b)
+          );
+          return (
+            <div key={slug} style={{ marginBottom: 28 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                Camping Gear
+                {catLabel}
               </div>
-              {camping.map(pi => (
-                <div key={pi.plan_item_id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}>
-                  <span style={{ fontSize: 15 }}>{pi.star_party_item.name}</span>
-                  {pi.status === "to_pick" ? (
-                    <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                      {STATUS_LABEL[pi.status]}
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => undoStatus(pi)}
-                      disabled={updating.has(pi.plan_item_id)}
-                      title={UNDO_LABEL[pi.status]}
-                      style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
-                    >
-                      {STATUS_LABEL[pi.status]}
-                      <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Astro Gear */}
-          {Object.keys(astroSubs).length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                Astro Gear
-              </div>
-              {Object.entries(astroSubs).map(([sub, subItems]) => (
+              {sortedSubs.map(sub => (
                 <div key={sub} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 4px", textTransform: "uppercase" }}>
-                    {sub}
-                  </div>
-                  {subItems.map(pi => (
-                    <div key={pi.plan_item_id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 4px 11px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}>
+                  {sub !== "(No sub-category)" && (
+                    <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 4px", textTransform: "uppercase" }}>
+                      {sub}
+                    </div>
+                  )}
+                  {subs[sub].map(pi => (
+                    <div
+                      key={pi.plan_item_id}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: `11px 4px 11px ${sub !== "(No sub-category)" ? 16 : 4}px`, borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
+                    >
                       <span style={{ fontSize: 15 }}>{pi.star_party_item.name}</span>
                       {pi.status === "to_pick" ? (
                         <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
@@ -251,8 +232,8 @@ export default function RequiredItemsPage() {
                 </div>
               ))}
             </div>
-          )}
-        </>
+          );
+        })
       )}
     </main>
   );

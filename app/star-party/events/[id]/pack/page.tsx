@@ -19,6 +19,7 @@ type PlanItem = {
   };
 };
 
+type Category = { slug: string; label: string };
 type EventMeta = { name: string; is_current: boolean };
 
 export default function ToPackPage() {
@@ -26,14 +27,16 @@ export default function ToPackPage() {
   const id = params.id as string;
 
   const [event, setEvent] = useState<EventMeta | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<Set<number>>(new Set());
 
   async function load() {
     setLoading(true);
-    const [evRes, piRes] = await Promise.all([
+    const [evRes, catRes, piRes] = await Promise.all([
       supabase.from("star_party_event").select("name, is_current").eq("event_id", id).single(),
+      supabase.from("star_party_category").select("slug, label").order("sort_order"),
       supabase
         .from("star_party_plan_item")
         .select("plan_item_id, status, star_party_item(item_id, name, category, sub_category, sort_order)")
@@ -41,6 +44,7 @@ export default function ToPackPage() {
         .eq("status", "picked"),
     ]);
     setEvent(evRes.data as EventMeta ?? null);
+    setCategories((catRes.data as Category[]) ?? []);
     setItems((piRes.data as unknown as PlanItem[]) ?? []);
     setLoading(false);
   }
@@ -61,18 +65,26 @@ export default function ToPackPage() {
     setUpdating(prev => { const n = new Set(prev); n.delete(pi.plan_item_id); return n; });
   }
 
-  const camping = items.filter(p => p.star_party_item.category === "camping")
-    .sort((a, b) => a.star_party_item.sort_order - b.star_party_item.sort_order);
-  const astroItems = items.filter(p => p.star_party_item.category === "astro");
-  const astroSubs: Record<string, PlanItem[]> = {};
-  for (const pi of astroItems) {
-    const sub = pi.star_party_item.sub_category ?? "General";
-    if (!astroSubs[sub]) astroSubs[sub] = [];
-    astroSubs[sub].push(pi);
+  // Dynamic grouping
+  const catOrder = categories.map(c => c.slug);
+  const grouped: Record<string, Record<string, PlanItem[]>> = {};
+  for (const pi of items) {
+    const cat = pi.star_party_item.category;
+    const sub = pi.star_party_item.sub_category ?? "(No sub-category)";
+    if (!grouped[cat]) grouped[cat] = {};
+    if (!grouped[cat][sub]) grouped[cat][sub] = [];
+    grouped[cat][sub].push(pi);
   }
-  for (const sub of Object.keys(astroSubs)) {
-    astroSubs[sub].sort((a, b) => a.star_party_item.sort_order - b.star_party_item.sort_order);
+  for (const cat of Object.keys(grouped)) {
+    for (const sub of Object.keys(grouped[cat])) {
+      grouped[cat][sub].sort((a, b) => a.star_party_item.sort_order - b.star_party_item.sort_order);
+    }
   }
+  const sortedCatSlugs = Object.keys(grouped).sort((a, b) => {
+    const ai = catOrder.indexOf(a);
+    const bi = catOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
@@ -113,7 +125,7 @@ export default function ToPackPage() {
         <Link href={`/star-party/events/${id}`} style={tabStyle(false)}>Required</Link>
         <Link href={`/star-party/events/${id}/pick`} style={tabStyle(false)}>To Pick</Link>
         <span style={tabStyle(true)}>To Pack</span>
-        <Link href={`/star-party/events/${id}/off-plan`} style={tabStyle(false)}>Off Plan</Link>
+        <Link href={`/star-party/events/${id}/off-plan`} style={tabStyle(false)}>Not on Plan</Link>
       </div>
 
       {loading ? (
@@ -133,56 +145,48 @@ export default function ToPackPage() {
             Tap an item to mark it as packed. It will disappear from this list.
           </p>
 
-          {camping.length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                Camping Gear ({camping.length})
-              </div>
-              {camping.map(pi => (
-                <div key={pi.plan_item_id} style={rowStyle} onClick={() => markPacked(pi)}>
-                  <div style={{
-                    width: 26, height: 26, borderRadius: 6,
-                    border: "2px solid #3b82f6",
-                    background: "rgba(59,130,246,0.15)", flexShrink: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    opacity: updating.has(pi.plan_item_id) ? 0.4 : 1,
-                  }}>
-                    <span style={{ color: "#93c5fd", fontSize: 14, fontWeight: 700 }}>✓</span>
-                  </div>
-                  <span style={{ fontSize: 16 }}>{pi.star_party_item.name}</span>
+          {sortedCatSlugs.map(slug => {
+            const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
+            const subs = grouped[slug];
+            const catTotal = Object.values(subs).reduce((n, arr) => n + arr.length, 0);
+            const sortedSubs = Object.keys(subs).sort((a, b) =>
+              a === "(No sub-category)" ? -1 : b === "(No sub-category)" ? 1 : a.localeCompare(b)
+            );
+            return (
+              <div key={slug} style={{ marginBottom: 28 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  {catLabel} ({catTotal})
                 </div>
-              ))}
-            </div>
-          )}
-
-          {Object.keys(astroSubs).length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                Astro Gear ({astroItems.length})
-              </div>
-              {Object.entries(astroSubs).map(([sub, subItems]) => (
-                <div key={sub} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 2px", textTransform: "uppercase" }}>
-                    {sub}
-                  </div>
-                  {subItems.map(pi => (
-                    <div key={pi.plan_item_id} style={{ ...rowStyle, paddingLeft: 16 }} onClick={() => markPacked(pi)}>
-                      <div style={{
-                        width: 26, height: 26, borderRadius: 6,
-                        border: "2px solid #3b82f6",
-                        background: "rgba(59,130,246,0.15)", flexShrink: 0,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        opacity: updating.has(pi.plan_item_id) ? 0.4 : 1,
-                      }}>
-                        <span style={{ color: "#93c5fd", fontSize: 14, fontWeight: 700 }}>✓</span>
+                {sortedSubs.map(sub => (
+                  <div key={sub} style={{ marginBottom: 10 }}>
+                    {sub !== "(No sub-category)" && (
+                      <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 2px", textTransform: "uppercase" }}>
+                        {sub}
                       </div>
-                      <span style={{ fontSize: 16 }}>{pi.star_party_item.name}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
+                    )}
+                    {subs[sub].map(pi => (
+                      <div
+                        key={pi.plan_item_id}
+                        style={{ ...rowStyle, paddingLeft: sub !== "(No sub-category)" ? 16 : 4 }}
+                        onClick={() => markPacked(pi)}
+                      >
+                        <div style={{
+                          width: 26, height: 26, borderRadius: 6,
+                          border: "2px solid #3b82f6",
+                          background: "rgba(59,130,246,0.15)", flexShrink: 0,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          opacity: updating.has(pi.plan_item_id) ? 0.4 : 1,
+                        }}>
+                          <span style={{ color: "#93c5fd", fontSize: 14, fontWeight: 700 }}>✓</span>
+                        </div>
+                        <span style={{ fontSize: 16 }}>{pi.star_party_item.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </>
       )}
     </main>
