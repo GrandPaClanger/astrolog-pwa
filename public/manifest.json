@@ -1,7 +1,7 @@
 {
   "name": "Astrolog",
   "short_name": "Astrolog",
-  "description": "Astrophotography session log",
+  "description": "Astronomy Planning and Logging",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",

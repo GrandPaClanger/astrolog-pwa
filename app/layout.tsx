@@ -11,7 +11,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Astrolog",
-  description: "Astrophotography session log",
+  description: "Astronomy Planning and Logging",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

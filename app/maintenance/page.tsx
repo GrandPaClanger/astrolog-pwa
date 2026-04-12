@@ -151,10 +151,33 @@ export default function MaintenancePage() {
     <div className="page-wrapper">
       <div className="flex items-center gap-4 mb-6">
         <h1 style={{ margin: 0 }}>Maintenance</h1>
-        <Link href="/targets" className="btn-ghost ml-auto">
-          Back to Targets
+        <Link href="/" className="btn-ghost ml-auto">
+          ← Home
         </Link>
       </div>
+
+      {/* Star Party Items shortcut */}
+      <Link
+        href="/star-party/items"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "14px 16px",
+          borderRadius: 10,
+          border: "1px solid rgba(59,130,246,0.35)",
+          background: "rgba(59,130,246,0.07)",
+          textDecoration: "none",
+          color: "white",
+          marginBottom: 24,
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 15 }}>Star Party Checklist Items</div>
+          <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>Add, edit and remove items from your packing checklist</div>
+        </div>
+        <span style={{ fontSize: 18, opacity: 0.5 }}>›</span>
+      </Link>
 
       <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12, marginBottom: 12 }}>
         <div>

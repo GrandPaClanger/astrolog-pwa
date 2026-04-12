@@ -65,7 +65,7 @@ export default function LoginPage() {
         </div>
 
         <h1 className="text-2xl font-bold text-center text-slate-100 mb-1">Astrolog</h1>
-        <p className="text-sm text-slate-400 text-center mb-8">Astrophotography session log</p>
+        <p className="text-sm text-slate-400 text-center mb-8">Astronomy Planning and Logging</p>
 
         <div className="card">
           <h2 className="text-base font-semibold text-slate-100 mb-4 mt-0">Sign in</h2>
