@@ -34,7 +34,7 @@ export default function OffPlanPage() {
     const [evRes, catRes, allItemsRes, planItemsRes] = await Promise.all([
       supabase.from("star_party_event").select("name, is_current").eq("event_id", id).single(),
       supabase.from("star_party_category").select("slug, label").order("sort_order"),
-      supabase.from("star_party_item").select("item_id, name, category, sub_category, sort_order").order("category").order("sub_category", { nullsFirst: true }).order("sort_order").order("name"),
+      supabase.from("star_party_item").select("item_id, name, category, sub_category, sort_order").order("category").order("sub_category", { nullsFirst: true }).order("name"),
       supabase.from("star_party_plan_item").select("item_id").eq("event_id", id),
     ]);
     setEvent(evRes.data as EventMeta ?? null);

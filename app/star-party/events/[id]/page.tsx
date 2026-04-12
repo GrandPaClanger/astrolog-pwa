@@ -120,7 +120,7 @@ export default function RequiredItemsPage() {
   }
   for (const cat of Object.keys(grouped)) {
     for (const sub of Object.keys(grouped[cat])) {
-      grouped[cat][sub].sort((a, b) => a.star_party_item.sort_order - b.star_party_item.sort_order);
+      grouped[cat][sub].sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name));
     }
   }
   const sortedCatSlugs = Object.keys(grouped).sort((a, b) => {

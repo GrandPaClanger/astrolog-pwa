@@ -59,7 +59,7 @@ export default function ToPackPage() {
       .update({ status: "packed" })
       .eq("plan_item_id", pi.plan_item_id);
     if (err) {
-      setItems(prev => [...prev, pi].sort((a, b) => a.star_party_item.sort_order - b.star_party_item.sort_order));
+      setItems(prev => [...prev, pi].sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name)));
       alert(err.message);
     }
     setUpdating(prev => { const n = new Set(prev); n.delete(pi.plan_item_id); return n; });
@@ -77,7 +77,7 @@ export default function ToPackPage() {
   }
   for (const cat of Object.keys(grouped)) {
     for (const sub of Object.keys(grouped[cat])) {
-      grouped[cat][sub].sort((a, b) => a.star_party_item.sort_order - b.star_party_item.sort_order);
+      grouped[cat][sub].sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name));
     }
   }
   const sortedCatSlugs = Object.keys(grouped).sort((a, b) => {
