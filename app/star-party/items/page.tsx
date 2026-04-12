@@ -119,7 +119,7 @@ export default function StarPartyItemsPage() {
     if (savedId !== null) {
       setTimeout(() => {
         const el = document.querySelector(`[data-item-id="${savedId}"]`);
-        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        el?.scrollIntoView({ behavior: "smooth", block: "end" });
       }, 100);
     }
   }, [savedId]);
