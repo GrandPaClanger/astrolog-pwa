@@ -500,6 +500,53 @@ revoke insert, update, delete on public.location from authenticated;
 -- 7) Star Party Checklist
 -- =============
 
+-- Global category lookup (slug matches star_party_item.category text)
+create table if not exists public.star_party_category (
+  category_id  smallserial primary key,
+  slug         text not null unique,
+  label        text not null,
+  sort_order   int not null default 0
+);
+
+insert into public.star_party_category (slug, label, sort_order) values
+  ('camping', 'Camping Gear', 10),
+  ('astro',   'Astro Gear',  20)
+on conflict do nothing;
+
+-- Global sub-category lookup
+create table if not exists public.star_party_sub_category (
+  sub_category_id smallserial primary key,
+  category_slug   text not null references public.star_party_category(slug) on delete cascade,
+  name            text not null,
+  sort_order      int not null default 0,
+  unique (category_slug, name)
+);
+
+insert into public.star_party_sub_category (category_slug, name, sort_order) values
+  ('astro', 'Cameras',        10),
+  ('astro', 'Controllers',    20),
+  ('astro', 'General',        30),
+  ('astro', 'Mounts',         40),
+  ('astro', 'PC',             50),
+  ('astro', 'Power Supplies', 60),
+  ('astro', 'Scopes',         70),
+  ('astro', 'Tripods',        80)
+on conflict do nothing;
+
+alter table public.star_party_category enable row level security;
+drop policy if exists "sp_cat_read" on public.star_party_category;
+create policy "sp_cat_read"
+on public.star_party_category for select to authenticated using (true);
+
+alter table public.star_party_sub_category enable row level security;
+drop policy if exists "sp_subcat_read" on public.star_party_sub_category;
+create policy "sp_subcat_read"
+on public.star_party_sub_category for select to authenticated using (true);
+
+drop policy if exists "sp_subcat_insert" on public.star_party_sub_category;
+create policy "sp_subcat_insert"
+on public.star_party_sub_category for insert to authenticated with check (true);
+
 create table if not exists public.star_party_item (
   item_id      bigserial primary key,
   person_id    bigint not null references public.person(person_id) on delete cascade,

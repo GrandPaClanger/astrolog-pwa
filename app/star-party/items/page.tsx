@@ -14,6 +14,17 @@ type Item = {
   sub_category: string | null;
 };
 
+type Category = {
+  slug: string;
+  label: string;
+};
+
+type SubCategory = {
+  sub_category_id: number;
+  category_slug: string;
+  name: string;
+};
+
 const NEW_SUB = "__new__";
 
 const iStyle: React.CSSProperties = {
@@ -38,21 +49,30 @@ const lStyle: React.CSSProperties = {
 
 export default function StarPartyItemsPage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState("");
-  const [category, setCategory] = useState<"camping" | "astro">("camping");
-  // subCatSelect: the value from the <select>; subCatNew: typed new value
+  const [category, setCategory] = useState("camping");
   const [subCatSelect, setSubCatSelect] = useState("");
   const [subCatNew, setSubCatNew] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
-    setLoading(true);
+  async function loadLookups() {
+    const [catRes, subRes] = await Promise.all([
+      supabase.from("star_party_category").select("slug, label").order("sort_order"),
+      supabase.from("star_party_sub_category").select("sub_category_id, category_slug, name").order("sort_order").order("name"),
+    ]);
+    setCategories((catRes.data as Category[]) ?? []);
+    setSubCategories((subRes.data as SubCategory[]) ?? []);
+  }
+
+  async function loadItems() {
     const { data } = await supabase
       .from("star_party_item")
       .select("item_id, name, category, sub_category")
@@ -60,6 +80,11 @@ export default function StarPartyItemsPage() {
       .order("sub_category", { nullsFirst: true })
       .order("name");
     setItems((data as Item[]) ?? []);
+  }
+
+  async function load() {
+    setLoading(true);
+    await Promise.all([loadLookups(), loadItems()]);
     setLoading(false);
   }
 
@@ -74,27 +99,19 @@ export default function StarPartyItemsPage() {
       }))
     );
     if (err) alert(err.message);
-    await load();
+    await loadItems();
     setInitializing(false);
   }
 
   useEffect(() => { load(); }, []);
 
-  // Unique sub-categories for the currently selected category, sorted
-  function getSubCats(cat: string) {
-    return Array.from(
-      new Set(
-        items
-          .filter(i => i.category === cat && i.sub_category)
-          .map(i => i.sub_category as string)
-      )
-    ).sort();
-  }
+  // Sub-categories for the currently selected category
+  const filteredSubCats = subCategories.filter(s => s.category_slug === category);
 
   function openNew() {
     setEditingId(null);
     setName("");
-    setCategory("camping");
+    setCategory(categories[0]?.slug ?? "camping");
     setSubCatSelect("");
     setSubCatNew("");
     setError(null);
@@ -104,12 +121,11 @@ export default function StarPartyItemsPage() {
   function openEdit(item: Item) {
     setEditingId(item.item_id);
     setName(item.name);
-    const cat = item.category as "camping" | "astro";
-    setCategory(cat);
+    setCategory(item.category);
     const sub = item.sub_category ?? "";
-    const existingSubs = getSubCats(cat);
-    setSubCatSelect(existingSubs.includes(sub) ? sub : sub ? NEW_SUB : "");
-    setSubCatNew(existingSubs.includes(sub) ? "" : sub);
+    const exists = subCategories.some(s => s.category_slug === item.category && s.name === sub);
+    setSubCatSelect(sub ? (exists ? sub : NEW_SUB) : "");
+    setSubCatNew(exists || !sub ? "" : sub);
     setError(null);
     setShowForm(true);
   }
@@ -120,8 +136,8 @@ export default function StarPartyItemsPage() {
     setError(null);
   }
 
-  function handleCategoryChange(cat: "camping" | "astro") {
-    setCategory(cat);
+  function handleCategoryChange(slug: string) {
+    setCategory(slug);
     setSubCatSelect("");
     setSubCatNew("");
   }
@@ -136,19 +152,28 @@ export default function StarPartyItemsPage() {
 
     const finalSub = resolvedSubCat();
 
-    // Prompt if brand-new sub-category typed
-    if (subCatSelect === NEW_SUB && finalSub) {
+    // Prompt and insert new sub-category into the lookup table
+    if (subCatSelect === NEW_SUB) {
+      if (!finalSub) { setError("Please enter a name for the new sub-category."); return; }
       const confirmed = confirm(`"${finalSub}" is a new sub-category. Create it?`);
       if (!confirmed) return;
+
+      const { error: subErr } = await supabase
+        .from("star_party_sub_category")
+        .insert({ category_slug: category, name: finalSub });
+      if (subErr && subErr.code !== "23505") {
+        // 23505 = unique violation (already exists) — safe to ignore
+        setError(subErr.message);
+        return;
+      }
+      // Refresh the sub-category list so it appears in the dropdown from now on
+      await loadLookups();
     }
 
     setSaving(true);
     setError(null);
-    const payload = {
-      name: name.trim(),
-      category,
-      sub_category: finalSub || null,
-    };
+    const payload = { name: name.trim(), category, sub_category: finalSub || null };
+
     if (editingId !== null) {
       const { error: err } = await supabase.from("star_party_item").update(payload).eq("item_id", editingId);
       if (err) { setError(err.message); setSaving(false); return; }
@@ -157,7 +182,7 @@ export default function StarPartyItemsPage() {
       if (err) { setError(err.message); setSaving(false); return; }
     }
     closeForm();
-    await load();
+    await loadItems();
     setSaving(false);
   }
 
@@ -165,20 +190,24 @@ export default function StarPartyItemsPage() {
     if (!confirm(`Delete "${item.name}"?`)) return;
     const { error: err } = await supabase.from("star_party_item").delete().eq("item_id", item.item_id);
     if (err) { alert(err.message); return; }
-    await load();
+    await loadItems();
   }
 
-  // Group items by category → sub_category, already sorted by DB (category, sub_category, name)
+  // Group items: category label → sub_category → items
+  const catOrder = categories.map(c => c.slug);
   const grouped: Record<string, Record<string, Item[]>> = {};
   for (const item of items) {
-    const cat = item.category === "camping" ? "Camping Gear" : "Astro Gear";
+    const cat = categories.find(c => c.slug === item.category)?.label ?? item.category;
     const sub = item.sub_category ?? "(No sub-category)";
     if (!grouped[cat]) grouped[cat] = {};
     if (!grouped[cat][sub]) grouped[cat][sub] = [];
     grouped[cat][sub].push(item);
   }
+  const sortedCats = Object.keys(grouped).sort(
+    (a, b) => catOrder.indexOf(categories.find(c => c.label === a)?.slug ?? "") -
+              catOrder.indexOf(categories.find(c => c.label === b)?.slug ?? "")
+  );
 
-  const existingSubCats = getSubCats(category);
   const showNewInput = subCatSelect === NEW_SUB;
 
   return (
@@ -212,9 +241,10 @@ export default function StarPartyItemsPage() {
 
           <div style={{ marginBottom: 14 }}>
             <label style={lStyle}>Category *</label>
-            <select style={iStyle} value={category} onChange={e => handleCategoryChange(e.target.value as "camping" | "astro")}>
-              <option value="camping">Camping Gear</option>
-              <option value="astro">Astro Gear</option>
+            <select style={iStyle} value={category} onChange={e => handleCategoryChange(e.target.value)}>
+              {categories.map(c => (
+                <option key={c.slug} value={c.slug}>{c.label}</option>
+              ))}
             </select>
           </div>
 
@@ -226,8 +256,8 @@ export default function StarPartyItemsPage() {
               onChange={e => { setSubCatSelect(e.target.value); if (e.target.value !== NEW_SUB) setSubCatNew(""); }}
             >
               <option value="">— None —</option>
-              {existingSubCats.map(s => (
-                <option key={s} value={s}>{s}</option>
+              {filteredSubCats.map(s => (
+                <option key={s.sub_category_id} value={s.name}>{s.name}</option>
               ))}
               <option value={NEW_SUB}>+ New sub-category…</option>
             </select>
@@ -274,14 +304,14 @@ export default function StarPartyItemsPage() {
           </button>
         </div>
       ) : (
-        Object.entries(grouped).map(([cat, subs]) => (
+        sortedCats.map(cat => (
           <div key={cat} style={{ marginBottom: 28 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 12, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
               {cat}
             </div>
-            {Object.entries(subs).sort(([a], [b]) => a.localeCompare(b)).map(([sub, subItems]) => (
+            {Object.entries(grouped[cat]).sort(([a], [b]) => a.localeCompare(b)).map(([sub, subItems]) => (
               <div key={sub} style={{ marginBottom: 16 }}>
-                {(cat === "Astro Gear" || sub !== "(No sub-category)") && (
+                {sub !== "(No sub-category)" && (
                   <div style={{ fontSize: 11, opacity: 0.5, fontWeight: 600, letterSpacing: "0.08em", marginBottom: 6, paddingLeft: 4 }}>
                     {sub.toUpperCase()}
                   </div>
