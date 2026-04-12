@@ -64,6 +64,7 @@ export default function StarPartyItemsPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<number | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  const scrollTargetIdRef = useRef<number | null>(null);
 
   async function loadLookups() {
     const [catRes, subRes] = await Promise.all([
@@ -114,18 +115,45 @@ export default function StarPartyItemsPage() {
     }
   }, [showForm]);
 
-  // After save, scroll to the highlighted item so user can see where it landed
+  // After save, scroll to the item that was just above the one being edited
   useEffect(() => {
     if (savedId !== null) {
       setTimeout(() => {
-        const el = document.querySelector(`[data-item-id="${savedId}"]`);
-        el?.scrollIntoView({ behavior: "smooth", block: "end" });
+        const targetId = scrollTargetIdRef.current;
+        const el = targetId !== null
+          ? document.querySelector(`[data-item-id="${targetId}"]`)
+          : document.querySelector(`[data-item-id="${savedId}"]`);
+        el?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 100);
     }
   }, [savedId]);
 
   // Sub-categories for the currently selected category
   const filteredSubCats = subCategories.filter(s => s.category_slug === category);
+
+  // Returns items in the exact order they appear in the rendered list
+  function flatDisplayOrder(): Item[] {
+    const catOrder = categories.map(c => c.slug);
+    const grp: Record<string, Record<string, Item[]>> = {};
+    for (const item of items) {
+      const cat = categories.find(c => c.slug === item.category)?.label ?? item.category;
+      const sub = item.sub_category ?? "(No sub-category)";
+      if (!grp[cat]) grp[cat] = {};
+      if (!grp[cat][sub]) grp[cat][sub] = [];
+      grp[cat][sub].push(item);
+    }
+    const sortedC = Object.keys(grp).sort(
+      (a, b) => catOrder.indexOf(categories.find(c => c.label === a)?.slug ?? "") -
+                catOrder.indexOf(categories.find(c => c.label === b)?.slug ?? "")
+    );
+    const flat: Item[] = [];
+    for (const cat of sortedC) {
+      for (const [, subItems] of Object.entries(grp[cat]).sort(([a], [b]) => a.localeCompare(b))) {
+        flat.push(...subItems);
+      }
+    }
+    return flat;
+  }
 
   function openNew() {
     setEditingId(null);
@@ -138,6 +166,9 @@ export default function StarPartyItemsPage() {
   }
 
   function openEdit(item: Item) {
+    const flat = flatDisplayOrder();
+    const idx = flat.findIndex(i => i.item_id === item.item_id);
+    scrollTargetIdRef.current = idx > 0 ? flat[idx - 1].item_id : null;
     setEditingId(item.item_id);
     setName(item.name);
     setCategory(item.category);
