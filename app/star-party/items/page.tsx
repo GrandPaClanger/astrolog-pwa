@@ -12,8 +12,9 @@ type Item = {
   name: string;
   category: string;
   sub_category: string | null;
-  sort_order: number;
 };
+
+const NEW_SUB = "__new__";
 
 const iStyle: React.CSSProperties = {
   width: "100%",
@@ -44,8 +45,9 @@ export default function StarPartyItemsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState<"camping" | "astro">("camping");
-  const [subCat, setSubCat] = useState("");
-  const [sortOrder, setSortOrder] = useState<number | "">("");
+  // subCatSelect: the value from the <select>; subCatNew: typed new value
+  const [subCatSelect, setSubCatSelect] = useState("");
+  const [subCatNew, setSubCatNew] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,10 +55,10 @@ export default function StarPartyItemsPage() {
     setLoading(true);
     const { data } = await supabase
       .from("star_party_item")
-      .select("item_id, name, category, sub_category, sort_order")
+      .select("item_id, name, category, sub_category")
       .order("category")
       .order("sub_category", { nullsFirst: true })
-      .order("sort_order");
+      .order("name");
     setItems((data as Item[]) ?? []);
     setLoading(false);
   }
@@ -78,12 +80,23 @@ export default function StarPartyItemsPage() {
 
   useEffect(() => { load(); }, []);
 
+  // Unique sub-categories for the currently selected category, sorted
+  function getSubCats(cat: string) {
+    return Array.from(
+      new Set(
+        items
+          .filter(i => i.category === cat && i.sub_category)
+          .map(i => i.sub_category as string)
+      )
+    ).sort();
+  }
+
   function openNew() {
     setEditingId(null);
     setName("");
     setCategory("camping");
-    setSubCat("");
-    setSortOrder("");
+    setSubCatSelect("");
+    setSubCatNew("");
     setError(null);
     setShowForm(true);
   }
@@ -91,9 +104,12 @@ export default function StarPartyItemsPage() {
   function openEdit(item: Item) {
     setEditingId(item.item_id);
     setName(item.name);
-    setCategory(item.category as "camping" | "astro");
-    setSubCat(item.sub_category ?? "");
-    setSortOrder(item.sort_order);
+    const cat = item.category as "camping" | "astro";
+    setCategory(cat);
+    const sub = item.sub_category ?? "";
+    const existingSubs = getSubCats(cat);
+    setSubCatSelect(existingSubs.includes(sub) ? sub : sub ? NEW_SUB : "");
+    setSubCatNew(existingSubs.includes(sub) ? "" : sub);
     setError(null);
     setShowForm(true);
   }
@@ -104,23 +120,25 @@ export default function StarPartyItemsPage() {
     setError(null);
   }
 
-  // Existing sub-categories for the currently selected category
-  const existingSubCats = Array.from(
-    new Set(
-      items
-        .filter(i => i.category === category && i.sub_category)
-        .map(i => i.sub_category as string)
-    )
-  ).sort();
+  function handleCategoryChange(cat: "camping" | "astro") {
+    setCategory(cat);
+    setSubCatSelect("");
+    setSubCatNew("");
+  }
+
+  function resolvedSubCat(): string {
+    if (subCatSelect === NEW_SUB) return subCatNew.trim();
+    return subCatSelect;
+  }
 
   async function onSave() {
     if (!name.trim()) { setError("Name is required."); return; }
 
-    const trimmedSub = subCat.trim();
+    const finalSub = resolvedSubCat();
 
-    // Prompt if the sub-category is new
-    if (trimmedSub && !existingSubCats.includes(trimmedSub)) {
-      const confirmed = confirm(`"${trimmedSub}" is a new sub-category. Create it?`);
+    // Prompt if brand-new sub-category typed
+    if (subCatSelect === NEW_SUB && finalSub) {
+      const confirmed = confirm(`"${finalSub}" is a new sub-category. Create it?`);
       if (!confirmed) return;
     }
 
@@ -129,8 +147,7 @@ export default function StarPartyItemsPage() {
     const payload = {
       name: name.trim(),
       category,
-      sub_category: subCat.trim() || null,
-      sort_order: sortOrder === "" ? 0 : Number(sortOrder),
+      sub_category: finalSub || null,
     };
     if (editingId !== null) {
       const { error: err } = await supabase.from("star_party_item").update(payload).eq("item_id", editingId);
@@ -151,15 +168,18 @@ export default function StarPartyItemsPage() {
     await load();
   }
 
-  // Group items by category then sub_category
+  // Group items by category → sub_category, already sorted by DB (category, sub_category, name)
   const grouped: Record<string, Record<string, Item[]>> = {};
   for (const item of items) {
     const cat = item.category === "camping" ? "Camping Gear" : "Astro Gear";
-    const sub = item.sub_category ?? "General";
+    const sub = item.sub_category ?? "(No sub-category)";
     if (!grouped[cat]) grouped[cat] = {};
     if (!grouped[cat][sub]) grouped[cat][sub] = [];
     grouped[cat][sub].push(item);
   }
+
+  const existingSubCats = getSubCats(category);
+  const showNewInput = subCatSelect === NEW_SUB;
 
   return (
     <main style={{ padding: "16px", maxWidth: 600, margin: "0 auto", paddingBottom: 40 }}>
@@ -192,39 +212,40 @@ export default function StarPartyItemsPage() {
 
           <div style={{ marginBottom: 14 }}>
             <label style={lStyle}>Category *</label>
-            <select style={iStyle} value={category} onChange={e => setCategory(e.target.value as "camping" | "astro")}>
+            <select style={iStyle} value={category} onChange={e => handleCategoryChange(e.target.value as "camping" | "astro")}>
               <option value="camping">Camping Gear</option>
               <option value="astro">Astro Gear</option>
             </select>
           </div>
 
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: showNewInput ? 8 : 14 }}>
             <label style={lStyle}>Sub-Category</label>
-            <input
-              type="text"
-              list="subcategory-options"
+            <select
               style={iStyle}
-              value={subCat}
-              onChange={e => setSubCat(e.target.value)}
-              placeholder={category === "astro" ? "e.g. Cameras, Scopes, PC…" : "Optional grouping"}
-              autoComplete="off"
-            />
-            <datalist id="subcategory-options">
+              value={subCatSelect}
+              onChange={e => { setSubCatSelect(e.target.value); if (e.target.value !== NEW_SUB) setSubCatNew(""); }}
+            >
+              <option value="">— None —</option>
               {existingSubCats.map(s => (
-                <option key={s} value={s} />
+                <option key={s} value={s}>{s}</option>
               ))}
-            </datalist>
-            {existingSubCats.length > 0 && (
-              <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>
-                Select from the list or type a new name to create a sub-category
-              </div>
-            )}
+              <option value={NEW_SUB}>+ New sub-category…</option>
+            </select>
           </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <label style={lStyle}>Sort Order</label>
-            <input type="number" style={iStyle} value={sortOrder} onChange={e => setSortOrder(e.target.value === "" ? "" : Number(e.target.value))} placeholder="0" />
-          </div>
+          {showNewInput && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={lStyle}>New Sub-Category Name *</label>
+              <input
+                type="text"
+                style={iStyle}
+                value={subCatNew}
+                onChange={e => setSubCatNew(e.target.value)}
+                placeholder="e.g. Filters"
+                autoFocus
+              />
+            </div>
+          )}
 
           {error && <p style={{ color: "#f87171", fontSize: 14, margin: "8px 0" }}>{error}</p>}
 
@@ -258,9 +279,9 @@ export default function StarPartyItemsPage() {
             <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 12, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
               {cat}
             </div>
-            {Object.entries(subs).map(([sub, subItems]) => (
+            {Object.entries(subs).sort(([a], [b]) => a.localeCompare(b)).map(([sub, subItems]) => (
               <div key={sub} style={{ marginBottom: 16 }}>
-                {cat === "Astro Gear" && (
+                {(cat === "Astro Gear" || sub !== "(No sub-category)") && (
                   <div style={{ fontSize: 11, opacity: 0.5, fontWeight: 600, letterSpacing: "0.08em", marginBottom: 6, paddingLeft: 4 }}>
                     {sub.toUpperCase()}
                   </div>
