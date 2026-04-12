@@ -44,6 +44,16 @@ const STATUS_COLOR: Record<string, React.CSSProperties> = {
   packed: { background: "rgba(34,197,94,0.2)", color: "#86efac" },
 };
 
+const PREV_STATUS: Record<string, "to_pick" | "picked"> = {
+  picked: "to_pick",
+  packed: "picked",
+};
+
+const UNDO_LABEL: Record<string, string> = {
+  picked: "Un-pick",
+  packed: "Un-pack",
+};
+
 export default function RequiredItemsPage() {
   const params = useParams();
   const id = params.id as string;
@@ -51,6 +61,7 @@ export default function RequiredItemsPage() {
   const [event, setEvent] = useState<SPEvent | null>(null);
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState<Set<number>>(new Set());
 
   async function load() {
     setLoading(true);
@@ -65,6 +76,24 @@ export default function RequiredItemsPage() {
     setEvent(evRes.data as SPEvent ?? null);
     setPlanItems((piRes.data as unknown as PlanItem[]) ?? []);
     setLoading(false);
+  }
+
+  async function undoStatus(pi: PlanItem) {
+    const prev = PREV_STATUS[pi.status];
+    if (!prev) return;
+    setUpdating(s => new Set(s).add(pi.plan_item_id));
+    // Optimistic update
+    setPlanItems(items => items.map(p => p.plan_item_id === pi.plan_item_id ? { ...p, status: prev } : p));
+    const { error: err } = await supabase
+      .from("star_party_plan_item")
+      .update({ status: prev })
+      .eq("plan_item_id", pi.plan_item_id);
+    if (err) {
+      // Revert on error
+      setPlanItems(items => items.map(p => p.plan_item_id === pi.plan_item_id ? { ...p, status: pi.status } : p));
+      alert(err.message);
+    }
+    setUpdating(s => { const n = new Set(s); n.delete(pi.plan_item_id); return n; });
   }
 
   useEffect(() => { load(); }, [id]);
@@ -168,9 +197,21 @@ export default function RequiredItemsPage() {
               {camping.map(pi => (
                 <div key={pi.plan_item_id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}>
                   <span style={{ fontSize: 15 }}>{pi.star_party_item.name}</span>
-                  <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                    {STATUS_LABEL[pi.status]}
-                  </span>
+                  {pi.status === "to_pick" ? (
+                    <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                      {STATUS_LABEL[pi.status]}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => undoStatus(pi)}
+                      disabled={updating.has(pi.plan_item_id)}
+                      title={UNDO_LABEL[pi.status]}
+                      style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
+                    >
+                      {STATUS_LABEL[pi.status]}
+                      <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -190,9 +231,21 @@ export default function RequiredItemsPage() {
                   {subItems.map(pi => (
                     <div key={pi.plan_item_id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 4px 11px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}>
                       <span style={{ fontSize: 15 }}>{pi.star_party_item.name}</span>
-                      <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                        {STATUS_LABEL[pi.status]}
-                      </span>
+                      {pi.status === "to_pick" ? (
+                        <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                          {STATUS_LABEL[pi.status]}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => undoStatus(pi)}
+                          disabled={updating.has(pi.plan_item_id)}
+                          title={UNDO_LABEL[pi.status]}
+                          style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
+                        >
+                          {STATUS_LABEL[pi.status]}
+                          <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
