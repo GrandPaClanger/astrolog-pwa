@@ -104,8 +104,26 @@ export default function StarPartyItemsPage() {
     setError(null);
   }
 
+  // Existing sub-categories for the currently selected category
+  const existingSubCats = Array.from(
+    new Set(
+      items
+        .filter(i => i.category === category && i.sub_category)
+        .map(i => i.sub_category as string)
+    )
+  ).sort();
+
   async function onSave() {
     if (!name.trim()) { setError("Name is required."); return; }
+
+    const trimmedSub = subCat.trim();
+
+    // Prompt if the sub-category is new
+    if (trimmedSub && !existingSubCats.includes(trimmedSub)) {
+      const confirmed = confirm(`"${trimmedSub}" is a new sub-category. Create it?`);
+      if (!confirmed) return;
+    }
+
     setSaving(true);
     setError(null);
     const payload = {
@@ -181,8 +199,26 @@ export default function StarPartyItemsPage() {
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <label style={lStyle}>Sub-Category (Astro only)</label>
-            <input type="text" style={iStyle} value={subCat} onChange={e => setSubCat(e.target.value)} placeholder="e.g. Cameras, Scopes, PC…" />
+            <label style={lStyle}>Sub-Category</label>
+            <input
+              type="text"
+              list="subcategory-options"
+              style={iStyle}
+              value={subCat}
+              onChange={e => setSubCat(e.target.value)}
+              placeholder={category === "astro" ? "e.g. Cameras, Scopes, PC…" : "Optional grouping"}
+              autoComplete="off"
+            />
+            <datalist id="subcategory-options">
+              {existingSubCats.map(s => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+            {existingSubCats.length > 0 && (
+              <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>
+                Select from the list or type a new name to create a sub-category
+              </div>
+            )}
           </div>
 
           <div style={{ marginBottom: 14 }}>
