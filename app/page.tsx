@@ -13,6 +13,7 @@ const NAV_CARDS = [
   { href: "/maintenance",      label: "Maintenance",      desc: "Manage equipment lists and lookup data" },
   { href: "/flat-wizard",      label: "Flat Wizard",      desc: "NINA flat wizard settings by telescope and camera" },
   { href: "/focus-positions",  label: "Focus Positions",  desc: "Record focuser positions by telescope" },
+  { href: "/star-party",       label: "Star Parties",     desc: "Packing checklists for star party events" },
 ];
 
 export default function HomePage() {

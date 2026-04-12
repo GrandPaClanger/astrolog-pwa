@@ -495,3 +495,98 @@ revoke insert, update, delete on public.mount from authenticated;
 revoke insert, update, delete on public.camera from authenticated;
 revoke insert, update, delete on public.filter from authenticated;
 revoke insert, update, delete on public.location from authenticated;
+
+-- =============
+-- 7) Star Party Checklist
+-- =============
+
+create table if not exists public.star_party_item (
+  item_id      bigserial primary key,
+  person_id    bigint not null references public.person(person_id) on delete cascade,
+  name         text not null,
+  category     text not null check (category in ('camping', 'astro')),
+  sub_category text,
+  sort_order   int not null default 0,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists ix_sp_item_person on public.star_party_item(person_id);
+
+create table if not exists public.star_party_event (
+  event_id    bigserial primary key,
+  person_id   bigint not null references public.person(person_id) on delete cascade,
+  name        text not null,
+  date_from   date not null,
+  date_to     date not null,
+  is_current  boolean not null default false,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists ix_sp_event_person on public.star_party_event(person_id);
+
+create table if not exists public.star_party_plan_item (
+  plan_item_id bigserial primary key,
+  event_id     bigint not null references public.star_party_event(event_id) on delete cascade,
+  item_id      bigint not null references public.star_party_item(item_id) on delete cascade,
+  person_id    bigint not null references public.person(person_id) on delete cascade,
+  status       text not null default 'to_pick' check (status in ('to_pick', 'picked', 'packed')),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (event_id, item_id)
+);
+
+create index if not exists ix_spp_event on public.star_party_plan_item(event_id);
+create index if not exists ix_spp_person on public.star_party_plan_item(person_id);
+
+drop trigger if exists trg_sp_item_updated_at on public.star_party_item;
+create trigger trg_sp_item_updated_at
+before update on public.star_party_item
+for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_sp_event_updated_at on public.star_party_event;
+create trigger trg_sp_event_updated_at
+before update on public.star_party_event
+for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_spp_updated_at on public.star_party_plan_item;
+create trigger trg_spp_updated_at
+before update on public.star_party_plan_item
+for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_sp_item_person on public.star_party_item;
+create trigger trg_sp_item_person
+before insert on public.star_party_item
+for each row execute function public.set_person_id_from_auth();
+
+drop trigger if exists trg_sp_event_person on public.star_party_event;
+create trigger trg_sp_event_person
+before insert on public.star_party_event
+for each row execute function public.set_person_id_from_auth();
+
+drop trigger if exists trg_spp_person on public.star_party_plan_item;
+create trigger trg_spp_person
+before insert on public.star_party_plan_item
+for each row execute function public.set_person_id_from_auth();
+
+alter table public.star_party_item enable row level security;
+drop policy if exists "sp_item_crud" on public.star_party_item;
+create policy "sp_item_crud"
+on public.star_party_item to authenticated
+using (person_id = public.current_person_id())
+with check (person_id = public.current_person_id());
+
+alter table public.star_party_event enable row level security;
+drop policy if exists "sp_event_crud" on public.star_party_event;
+create policy "sp_event_crud"
+on public.star_party_event to authenticated
+using (person_id = public.current_person_id())
+with check (person_id = public.current_person_id());
+
+alter table public.star_party_plan_item enable row level security;
+drop policy if exists "spp_crud" on public.star_party_plan_item;
+create policy "spp_crud"
+on public.star_party_plan_item to authenticated
+using (person_id = public.current_person_id())
+with check (person_id = public.current_person_id());
