@@ -551,7 +551,7 @@ create table if not exists public.star_party_item (
   item_id      bigserial primary key,
   person_id    bigint not null references public.person(person_id) on delete cascade,
   name         text not null,
-  category     text not null check (category in ('camping', 'astro')),
+  category     text not null references public.star_party_category(slug) on update cascade on delete restrict,
   sub_category text,
   sort_order   int not null default 0,
   created_at   timestamptz not null default now(),
