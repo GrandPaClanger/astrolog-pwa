@@ -54,6 +54,8 @@ export default function ToPackPage() {
   const [containerTypes, setContainerTypes] = useState<ContainerType[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedContainerId, setExpandedContainerId] = useState<number | null>(null);
+  const [expandedPackedItemId, setExpandedPackedItemId] = useState<number | null>(null);
   const [editingContainerId, setEditingContainerId] = useState<number | null>(null);
   const [containerNameDraft, setContainerNameDraft] = useState("");
   const [packing, setPacking] = useState<Set<number>>(new Set());
@@ -148,6 +150,26 @@ export default function ToPackPage() {
     if (!name.trim()) return;
     await supabase.from("star_party_container").update({ name: name.trim() }).eq("container_id", containerId);
     setContainers(prev => prev.map(c => c.container_id === containerId ? { ...c, name: name.trim() } : c));
+  }
+
+  async function reassignItem(planItemId: number, chip: "loose" | { containerId: number } | { typeId: number; typeName: string }) {
+    setExpandedPackedItemId(null);
+    let newContainerId: number | null = null;
+    if (chip === "loose") {
+      newContainerId = null;
+    } else if ("containerId" in chip) {
+      newContainerId = chip.containerId;
+    } else {
+      const newId = await createContainer(chip.typeId, chip.typeName);
+      if (newId === null) return;
+      newContainerId = newId;
+    }
+    const { error } = await supabase
+      .from("star_party_plan_item")
+      .update({ container_id: newContainerId })
+      .eq("plan_item_id", planItemId);
+    if (error) { alert(error.message); }
+    await loadPacked();
   }
 
   if (loading) return <main style={{ padding: 16 }}><p style={{ opacity: 0.6 }}>Loading…</p></main>;
@@ -288,84 +310,147 @@ export default function ToPackPage() {
               const cItems = itemsByContainer[c.container_id] ?? [];
               if (cItems.length === 0) return null;
               const isEditingName = editingContainerId === c.container_id;
+              const isOpen = expandedContainerId === c.container_id;
               return (
                 <div
                   key={c.container_id}
                   style={{
                     borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(255,255,255,0.04)", padding: "12px 14px",
-                    marginBottom: 10,
+                    background: "rgba(255,255,255,0.04)", marginBottom: 10, overflow: "hidden",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  {/* Card header */}
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", cursor: "pointer" }}
+                    onClick={() => {
+                      if (isEditingName) return;
+                      setExpandedContainerId(isOpen ? null : c.container_id);
+                      setExpandedPackedItemId(null);
+                    }}
+                  >
                     {isEditingName ? (
                       <input
                         autoFocus
                         value={containerNameDraft}
+                        onClick={e => e.stopPropagation()}
                         onChange={e => setContainerNameDraft(e.target.value)}
-                        onBlur={() => {
-                          saveContainerName(c.container_id, containerNameDraft);
-                          setEditingContainerId(null);
-                        }}
+                        onBlur={() => { saveContainerName(c.container_id, containerNameDraft); setEditingContainerId(null); }}
                         onKeyDown={e => {
-                          if (e.key === "Enter") {
-                            saveContainerName(c.container_id, containerNameDraft);
-                            setEditingContainerId(null);
-                          } else if (e.key === "Escape") {
-                            setEditingContainerId(null);
-                          }
+                          if (e.key === "Enter") { saveContainerName(c.container_id, containerNameDraft); setEditingContainerId(null); }
+                          else if (e.key === "Escape") setEditingContainerId(null);
                         }}
-                        style={{
-                          flex: 1, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(59,130,246,0.5)",
-                          borderRadius: 6, padding: "4px 8px", color: "white", fontSize: 15, fontWeight: 600,
-                          outline: "none",
-                        }}
+                        style={{ flex: 1, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(59,130,246,0.5)", borderRadius: 6, padding: "4px 8px", color: "white", fontSize: 15, fontWeight: 600, outline: "none" }}
                       />
                     ) : (
-                      <>
-                        <span style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>{c.name}</span>
-                        <button
-                          onClick={() => { setEditingContainerId(c.container_id); setContainerNameDraft(c.name); }}
-                          title="Rename"
-                          style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", color: "rgba(255,255,255,0.45)", fontSize: 15 }}
-                        >
-                          ✏️
-                        </button>
-                      </>
+                      <span style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>{c.name}</span>
                     )}
-                    <span style={{
-                      padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700,
-                      background: "rgba(34,197,94,0.2)", color: "#86efac",
-                    }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); setEditingContainerId(c.container_id); setContainerNameDraft(c.name); }}
+                      title="Rename"
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", color: "rgba(255,255,255,0.45)", fontSize: 14, flexShrink: 0 }}
+                    >✏️</button>
+                    <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "rgba(34,197,94,0.2)", color: "#86efac", flexShrink: 0 }}>
                       {cItems.length} item{cItems.length !== 1 ? "s" : ""}
                     </span>
+                    <span style={{ fontSize: 16, opacity: 0.4, transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
                   </div>
-                  <div style={{ fontSize: 12, opacity: 0.5 }}>
-                    {cItems.map(pi => pi.star_party_item.name).join(", ")}
-                  </div>
+
+                  {/* Expanded items */}
+                  {isOpen && (
+                    <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                      <p style={{ fontSize: 12, opacity: 0.5, margin: "8px 14px 4px" }}>Tap an item to move it.</p>
+                      {cItems.map(pi => {
+                        const itemExpanded = expandedPackedItemId === pi.plan_item_id;
+                        return (
+                          <div key={pi.plan_item_id}>
+                            <div
+                              onClick={() => setExpandedPackedItemId(itemExpanded ? null : pi.plan_item_id)}
+                              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", minHeight: 48, userSelect: "none" }}
+                            >
+                              <span style={{ fontSize: 14 }}>{pi.star_party_item.name}</span>
+                              <span style={{ fontSize: 16, opacity: 0.4, transform: itemExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>›</span>
+                            </div>
+                            {itemExpanded && (
+                              <div style={{ padding: "10px 14px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", overflowX: "auto" }}>
+                                <div style={{ display: "flex", gap: 8, paddingBottom: 4, minWidth: "max-content" }}>
+                                  <button onClick={() => reassignItem(pi.plan_item_id, "loose")}
+                                    style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.08)", color: "white", cursor: "pointer", whiteSpace: "nowrap" }}>
+                                    Loose
+                                  </button>
+                                  {containers.filter(oc => oc.container_id !== c.container_id).map(oc => (
+                                    <button key={oc.container_id} onClick={() => reassignItem(pi.plan_item_id, { containerId: oc.container_id })}
+                                      style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px solid rgba(99,179,237,0.5)", background: "rgba(59,130,246,0.15)", color: "#93c5fd", cursor: "pointer", whiteSpace: "nowrap" }}>
+                                      {oc.name}
+                                    </button>
+                                  ))}
+                                  {containerTypes.map(ct => (
+                                    <button key={ct.container_type_id} onClick={() => reassignItem(pi.plan_item_id, { typeId: ct.container_type_id, typeName: ct.name })}
+                                      style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px dashed rgba(134,239,172,0.5)", background: "rgba(34,197,94,0.1)", color: "#86efac", cursor: "pointer", whiteSpace: "nowrap" }}>
+                                      + New {ct.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
 
             {/* Loose items */}
             {loosePackedItems.length > 0 && (
-              <div style={{
-                borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.03)", padding: "12px 14px",
-                marginBottom: 10,
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <div style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", marginBottom: 10, overflow: "hidden" }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", cursor: "pointer" }}
+                  onClick={() => { setExpandedContainerId(expandedContainerId === -1 ? null : -1); setExpandedPackedItemId(null); }}
+                >
                   <span style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>Loose Items</span>
-                  <span style={{
-                    padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700,
-                    background: "rgba(251,191,36,0.2)", color: "#fbbf24",
-                  }}>
+                  <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "rgba(251,191,36,0.2)", color: "#fbbf24", flexShrink: 0 }}>
                     {loosePackedItems.length} item{loosePackedItems.length !== 1 ? "s" : ""}
                   </span>
+                  <span style={{ fontSize: 16, opacity: 0.4, transform: expandedContainerId === -1 ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
                 </div>
-                <div style={{ fontSize: 12, opacity: 0.5 }}>
-                  {loosePackedItems.map(pi => pi.star_party_item.name).join(", ")}
-                </div>
+                {expandedContainerId === -1 && (
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p style={{ fontSize: 12, opacity: 0.5, margin: "8px 14px 4px" }}>Tap an item to assign it to a container.</p>
+                    {loosePackedItems.map(pi => {
+                      const itemExpanded = expandedPackedItemId === pi.plan_item_id;
+                      return (
+                        <div key={pi.plan_item_id}>
+                          <div
+                            onClick={() => setExpandedPackedItemId(itemExpanded ? null : pi.plan_item_id)}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", minHeight: 48, userSelect: "none" }}
+                          >
+                            <span style={{ fontSize: 14 }}>{pi.star_party_item.name}</span>
+                            <span style={{ fontSize: 16, opacity: 0.4, transform: itemExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>›</span>
+                          </div>
+                          {itemExpanded && (
+                            <div style={{ padding: "10px 14px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", overflowX: "auto" }}>
+                              <div style={{ display: "flex", gap: 8, paddingBottom: 4, minWidth: "max-content" }}>
+                                {containers.map(c => (
+                                  <button key={c.container_id} onClick={() => reassignItem(pi.plan_item_id, { containerId: c.container_id })}
+                                    style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px solid rgba(99,179,237,0.5)", background: "rgba(59,130,246,0.15)", color: "#93c5fd", cursor: "pointer", whiteSpace: "nowrap" }}>
+                                    {c.name}
+                                  </button>
+                                ))}
+                                {containerTypes.map(ct => (
+                                  <button key={ct.container_type_id} onClick={() => reassignItem(pi.plan_item_id, { typeId: ct.container_type_id, typeName: ct.name })}
+                                    style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px dashed rgba(134,239,172,0.5)", background: "rgba(34,197,94,0.1)", color: "#86efac", cursor: "pointer", whiteSpace: "nowrap" }}>
+                                    + New {ct.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </>
