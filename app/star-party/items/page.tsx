@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_STAR_PARTY_ITEMS } from "@/lib/star-party-defaults";
@@ -63,6 +63,7 @@ export default function StarPartyItemsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<number | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   async function loadLookups() {
     const [catRes, subRes] = await Promise.all([
@@ -105,6 +106,23 @@ export default function StarPartyItemsPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  // Scroll to the form whenever it opens
+  useEffect(() => {
+    if (showForm) {
+      setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    }
+  }, [showForm]);
+
+  // After save, scroll to the highlighted item so user can see where it landed
+  useEffect(() => {
+    if (savedId !== null) {
+      setTimeout(() => {
+        const el = document.querySelector(`[data-item-id="${savedId}"]`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [savedId]);
 
   // Sub-categories for the currently selected category
   const filteredSubCats = subCategories.filter(s => s.category_slug === category);
@@ -241,7 +259,7 @@ export default function StarPartyItemsPage() {
       </div>
 
       {showForm && (
-        <div style={{ border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: "20px 16px", marginBottom: 28, background: "rgba(255,255,255,0.03)" }}>
+        <div ref={formRef} style={{ border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: "20px 16px", marginBottom: 28, background: "rgba(255,255,255,0.03)" }}>
           <h2 style={{ marginTop: 0, marginBottom: 18, fontSize: 16 }}>
             {editingId === null ? "New Item" : "Edit Item"}
           </h2>
@@ -329,7 +347,18 @@ export default function StarPartyItemsPage() {
                   </div>
                 )}
                 {subItems.map(item => (
-                  <div key={item.item_id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div
+                    key={item.item_id}
+                    data-item-id={item.item_id}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "10px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      borderLeft: savedId === item.item_id ? "3px solid #3b82f6" : "3px solid transparent",
+                      paddingLeft: savedId === item.item_id ? "8px" : "4px",
+                      transition: "border-color 0.3s, background 0.3s",
+                      background: savedId === item.item_id ? "rgba(59,130,246,0.08)" : "transparent",
+                    }}
+                  >
                     <span style={{ fontSize: 14 }}>{item.name}</span>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button onClick={() => openEdit(item)} style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "white", cursor: "pointer" }}>Edit</button>
