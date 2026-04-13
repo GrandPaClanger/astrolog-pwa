@@ -312,8 +312,16 @@ export default function ToPackPage() {
 
       {/* PACKED SECTION */}
       <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#86efac", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-          Packed ({packedItems.length})
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#86efac", letterSpacing: "0.06em" }}>
+            Packed ({packedItems.length})
+          </span>
+          <Link
+            href={`/star-party/events/${id}/containers`}
+            style={{ fontSize: 12, color: "#93c5fd", textDecoration: "none", opacity: 0.8 }}
+          >
+            Manage Containers →
+          </Link>
         </div>
 
         {packedItems.length === 0 ? (
