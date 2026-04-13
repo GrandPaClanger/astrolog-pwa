@@ -119,6 +119,16 @@ export default function ToPackPage() {
     return data.container_id;
   }
 
+  async function resetToPick(planItemId: number) {
+    setPickedItems(prev => prev.filter(p => p.plan_item_id !== planItemId));
+    setExpandedId(null);
+    const { error } = await supabase
+      .from("star_party_plan_item")
+      .update({ status: "to_pick", container_id: null, loaded: false })
+      .eq("plan_item_id", planItemId);
+    if (error) { alert(error.message); await load(); }
+  }
+
   async function packItem(planItemId: number, containerId: number | null) {
     setPacking(prev => new Set(prev).add(planItemId));
     setPickedItems(prev => prev.filter(p => p.plan_item_id !== planItemId));
@@ -233,8 +243,13 @@ export default function ToPackPage() {
                       opacity: isBusy ? 0.5 : 1,
                     }}
                   >
-                    <span style={{ fontSize: 15 }}>{pi.star_party_item.name}</span>
-                    <span style={{ fontSize: 18, opacity: 0.5, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>›</span>
+                    <span style={{ fontSize: 15, flex: 1 }}>{pi.star_party_item.name}</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); resetToPick(pi.plan_item_id); }}
+                      title="Return to pick list"
+                      style={{ background: "none", border: "none", color: "#f87171", fontSize: 18, cursor: "pointer", padding: "4px 6px", opacity: 0.75, flexShrink: 0 }}
+                    >↩</button>
+                    <span style={{ fontSize: 18, opacity: 0.5, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
                   </div>
 
                   {isExpanded && (
