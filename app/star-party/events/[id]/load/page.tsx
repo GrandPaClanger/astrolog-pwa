@@ -72,21 +72,23 @@ export default function ToLoadPage() {
 
   useEffect(() => { load(); }, [id]);
 
-  async function loadContainer(c: ContainerWithItems) {
+  async function toggleContainer(c: ContainerWithItems) {
     const itemIds = c.star_party_plan_item.map(p => p.plan_item_id);
     if (itemIds.length === 0) return;
+    const allLoaded = c.star_party_plan_item.every(p => p.loaded);
+    const newLoaded = !allLoaded;
     setLoadingContainer(prev => new Set(prev).add(c.container_id));
 
     // Optimistic
     setContainers(prev => prev.map(con =>
       con.container_id === c.container_id
-        ? { ...con, star_party_plan_item: con.star_party_plan_item.map(p => ({ ...p, loaded: true })) }
+        ? { ...con, star_party_plan_item: con.star_party_plan_item.map(p => ({ ...p, loaded: newLoaded })) }
         : con
     ));
 
     const { error } = await supabase
       .from("star_party_plan_item")
-      .update({ loaded: true })
+      .update({ loaded: newLoaded })
       .in("plan_item_id", itemIds);
     if (error) {
       alert(error.message);
@@ -208,18 +210,19 @@ export default function ToLoadPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => !allLoaded && !isBusy && loadContainer(c)}
-                      disabled={allLoaded || isBusy}
+                      onClick={() => !isBusy && toggleContainer(c)}
+                      disabled={isBusy}
                       style={{
                         padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                        border: "none", cursor: allLoaded ? "default" : "pointer",
-                        background: allLoaded ? "rgba(34,197,94,0.25)" : "#3b82f6",
+                        border: allLoaded ? "1px solid rgba(34,197,94,0.4)" : "none",
+                        cursor: isBusy ? "default" : "pointer",
+                        background: allLoaded ? "rgba(34,197,94,0.15)" : "#3b82f6",
                         color: allLoaded ? "#86efac" : "white",
                         opacity: isBusy ? 0.6 : 1,
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {isBusy ? "Loading…" : allLoaded ? "Loaded ✓" : "Load into Car"}
+                      {isBusy ? "Updating…" : allLoaded ? "Loaded ✓ (tap to unload)" : "Load into Car"}
                     </button>
                   </div>
                 );
