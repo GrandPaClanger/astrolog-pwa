@@ -102,6 +102,15 @@ export default function ToLoadPage() {
     setLoadingContainer(prev => { const n = new Set(prev); n.delete(c.container_id); return n; });
   }
 
+  async function resetToPick(planItemIds: number[]) {
+    const { error } = await supabase
+      .from("star_party_plan_item")
+      .update({ status: "to_pick", container_id: null, loaded: false })
+      .in("plan_item_id", planItemIds);
+    if (error) { alert(error.message); return; }
+    await load();
+  }
+
   async function toggleLooseItem(item: LooseItem) {
     const newLoaded = !item.loaded;
     setTogglingItem(prev => new Set(prev).add(item.plan_item_id));
@@ -200,30 +209,44 @@ export default function ToLoadPage() {
                       border: `1px solid ${allLoaded ? "rgba(34,197,94,0.35)" : "rgba(255,255,255,0.12)"}`,
                       background: allLoaded ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.04)",
                       padding: "12px 14px", marginBottom: 10,
-                      display: "flex", alignItems: "center", gap: 12,
                     }}
                   >
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</div>
-                      <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>
-                        {loaded} / {total} item{total !== 1 ? "s" : ""} loaded
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</div>
+                        <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>
+                          {loaded} / {total} item{total !== 1 ? "s" : ""} loaded
+                        </div>
                       </div>
+                      <button
+                        onClick={() => !isBusy && toggleContainer(c)}
+                        disabled={isBusy}
+                        style={{
+                          padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                          border: allLoaded ? "1px solid rgba(34,197,94,0.4)" : "none",
+                          cursor: isBusy ? "default" : "pointer",
+                          background: allLoaded ? "rgba(34,197,94,0.15)" : "#3b82f6",
+                          color: allLoaded ? "#86efac" : "white",
+                          opacity: isBusy ? 0.6 : 1,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {isBusy ? "Updating…" : allLoaded ? "Loaded ✓" : "Load into Car"}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => !isBusy && toggleContainer(c)}
-                      disabled={isBusy}
-                      style={{
-                        padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                        border: allLoaded ? "1px solid rgba(34,197,94,0.4)" : "none",
-                        cursor: isBusy ? "default" : "pointer",
-                        background: allLoaded ? "rgba(34,197,94,0.15)" : "#3b82f6",
-                        color: allLoaded ? "#86efac" : "white",
-                        opacity: isBusy ? 0.6 : 1,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {isBusy ? "Updating…" : allLoaded ? "Loaded ✓ (tap to unload)" : "Load into Car"}
-                    </button>
+                    {total > 0 && (
+                      <button
+                        onClick={() => resetToPick(c.star_party_plan_item.map(p => p.plan_item_id))}
+                        disabled={isBusy}
+                        style={{
+                          marginTop: 10, padding: "6px 0", fontSize: 12,
+                          background: "none", border: "none", color: "#f87171",
+                          cursor: "pointer", opacity: 0.75, textAlign: "left",
+                        }}
+                      >
+                        ↩ Return all to pick list
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -241,26 +264,38 @@ export default function ToLoadPage() {
                 return (
                   <div
                     key={li.plan_item_id}
-                    onClick={() => !isBusy && toggleLooseItem(li)}
                     style={{
                       display: "flex", alignItems: "center", gap: 14,
                       padding: "13px 4px", borderBottom: "1px solid rgba(255,255,255,0.07)",
-                      cursor: isBusy ? "default" : "pointer", minHeight: 52,
-                      userSelect: "none", WebkitTapHighlightColor: "transparent",
-                      opacity: isBusy ? 0.5 : 1,
+                      minHeight: 52, opacity: isBusy ? 0.5 : 1,
                     }}
                   >
-                    <div style={{
-                      width: 26, height: 26, borderRadius: 6, flexShrink: 0,
-                      border: `2px solid ${li.loaded ? "#22c55e" : "rgba(255,255,255,0.3)"}`,
-                      background: li.loaded ? "rgba(34,197,94,0.25)" : "transparent",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                      {li.loaded && <span style={{ color: "#86efac", fontSize: 14, fontWeight: 700 }}>✓</span>}
+                    {/* Tap checkbox/name to toggle loaded */}
+                    <div
+                      onClick={() => !isBusy && toggleLooseItem(li)}
+                      style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, cursor: isBusy ? "default" : "pointer", userSelect: "none", WebkitTapHighlightColor: "transparent" }}
+                    >
+                      <div style={{
+                        width: 26, height: 26, borderRadius: 6, flexShrink: 0,
+                        border: `2px solid ${li.loaded ? "#22c55e" : "rgba(255,255,255,0.3)"}`,
+                        background: li.loaded ? "rgba(34,197,94,0.25)" : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {li.loaded && <span style={{ color: "#86efac", fontSize: 14, fontWeight: 700 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize: 15, textDecoration: li.loaded ? "line-through" : "none", opacity: li.loaded ? 0.55 : 1 }}>
+                        {li.star_party_item.name}
+                      </span>
                     </div>
-                    <span style={{ fontSize: 15, textDecoration: li.loaded ? "line-through" : "none", opacity: li.loaded ? 0.55 : 1 }}>
-                      {li.star_party_item.name}
-                    </span>
+                    {/* Reset to pick list */}
+                    <button
+                      onClick={() => !isBusy && resetToPick([li.plan_item_id])}
+                      disabled={isBusy}
+                      title="Return to pick list"
+                      style={{ background: "none", border: "none", color: "#f87171", fontSize: 18, cursor: "pointer", padding: "4px 6px", flexShrink: 0, opacity: 0.75 }}
+                    >
+                      ↩
+                    </button>
                   </div>
                 );
               })}
