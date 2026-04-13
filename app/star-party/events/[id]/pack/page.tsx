@@ -323,7 +323,6 @@ export default function ToPackPage() {
             {/* Container cards */}
             {containers.map(c => {
               const cItems = itemsByContainer[c.container_id] ?? [];
-              if (cItems.length === 0) return null;
               const isEditingName = editingContainerId === c.container_id;
               const isOpen = expandedContainerId === c.container_id;
               return (
@@ -373,7 +372,13 @@ export default function ToPackPage() {
                   {/* Expanded items */}
                   {isOpen && (
                     <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                      <p style={{ fontSize: 12, opacity: 0.5, margin: "8px 14px 4px" }}>Tap an item to move it.</p>
+                      {cItems.length === 0 ? (
+                        <p style={{ fontSize: 12, opacity: 0.45, margin: "10px 14px 10px", fontStyle: "italic" }}>
+                          No items yet — tap an item in &ldquo;To Pack&rdquo; above and select this container.
+                        </p>
+                      ) : (
+                        <p style={{ fontSize: 12, opacity: 0.5, margin: "8px 14px 4px" }}>Tap an item to move it.</p>
+                      )}
                       {cItems.map(pi => {
                         const itemExpanded = expandedPackedItemId === pi.plan_item_id;
                         return (

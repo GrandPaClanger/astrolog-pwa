@@ -7,11 +7,18 @@ import { supabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
+type ContainerPlanItem = {
+  plan_item_id: number;
+  loaded: boolean;
+  status: string;
+  star_party_item: { name: string };
+};
+
 type ContainerWithItems = {
   container_id: number;
   name: string;
   star_party_container_type: { name: string };
-  star_party_plan_item: { plan_item_id: number; loaded: boolean }[];
+  star_party_plan_item: ContainerPlanItem[];
 };
 
 type LooseItem = {
@@ -46,6 +53,7 @@ export default function ToLoadPage() {
   const [loading, setLoading] = useState(true);
   const [loadingContainer, setLoadingContainer] = useState<Set<number>>(new Set());
   const [togglingItem, setTogglingItem] = useState<Set<number>>(new Set());
+  const [expandedContainerId, setExpandedContainerId] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -53,7 +61,7 @@ export default function ToLoadPage() {
       supabase.from("star_party_event").select("name").eq("event_id", id).single(),
       supabase
         .from("star_party_container")
-        .select(`container_id, name, number, star_party_container_type(name), star_party_plan_item(plan_item_id, loaded)`)
+        .select(`container_id, name, number, star_party_container_type(name), star_party_plan_item(plan_item_id, loaded, status, star_party_item(name))`)
         .eq("event_id", id)
         .order("container_type_id")
         .order("number"),
@@ -73,9 +81,10 @@ export default function ToLoadPage() {
   useEffect(() => { load(); }, [id]);
 
   async function toggleContainer(c: ContainerWithItems) {
-    const itemIds = c.star_party_plan_item.map(p => p.plan_item_id);
+    const packedItems = c.star_party_plan_item.filter(p => p.status === "packed");
+    const itemIds = packedItems.map(p => p.plan_item_id);
     if (itemIds.length === 0) return;
-    const allLoaded = c.star_party_plan_item.every(p => p.loaded);
+    const allLoaded = packedItems.every(p => p.loaded);
     const newLoaded = !allLoaded;
     setLoadingContainer(prev => new Set(prev).add(c.container_id));
 
@@ -136,14 +145,15 @@ export default function ToLoadPage() {
 
   if (loading) return <main style={{ padding: 16 }}><p style={{ opacity: 0.6 }}>Loading…</p></main>;
 
+  // Only count packed items (status='packed') in containers
   const totalItems =
-    containers.reduce((sum, c) => sum + c.star_party_plan_item.length, 0) +
+    containers.reduce((sum, c) => sum + c.star_party_plan_item.filter(p => p.status === "packed").length, 0) +
     looseItems.length;
   const loadedItems =
-    containers.reduce((sum, c) => sum + c.star_party_plan_item.filter(p => p.loaded).length, 0) +
+    containers.reduce((sum, c) => sum + c.star_party_plan_item.filter(p => p.status === "packed" && p.loaded).length, 0) +
     looseItems.filter(li => li.loaded).length;
 
-  const hasAnything = containers.length > 0 || looseItems.length > 0;
+  const hasAnything = containers.some(c => c.star_party_plan_item.some(p => p.status === "packed")) || looseItems.length > 0;
 
   return (
     <main style={{ padding: "16px", maxWidth: 600, margin: "0 auto", paddingBottom: 40 }}>
@@ -191,16 +201,19 @@ export default function ToLoadPage() {
           </div>
 
           {/* Container cards */}
-          {containers.length > 0 && (
+          {containers.some(c => c.star_party_plan_item.some(p => p.status === "packed")) && (
             <div style={{ marginBottom: 28 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                 Containers
               </div>
               {containers.map(c => {
-                const total = c.star_party_plan_item.length;
-                const loaded = c.star_party_plan_item.filter(p => p.loaded).length;
+                const packedPlanItems = c.star_party_plan_item.filter(p => p.status === "packed");
+                if (packedPlanItems.length === 0) return null;
+                const total = packedPlanItems.length;
+                const loaded = packedPlanItems.filter(p => p.loaded).length;
                 const allLoaded = total > 0 && loaded === total;
                 const isBusy = loadingContainer.has(c.container_id);
+                const isOpen = expandedContainerId === c.container_id;
                 return (
                   <div
                     key={c.container_id}
@@ -208,10 +221,14 @@ export default function ToLoadPage() {
                       borderRadius: 10,
                       border: `1px solid ${allLoaded ? "rgba(34,197,94,0.35)" : "rgba(255,255,255,0.12)"}`,
                       background: allLoaded ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.04)",
-                      padding: "12px 14px", marginBottom: 10,
+                      marginBottom: 10, overflow: "hidden",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    {/* Card header — tappable to expand */}
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: "pointer" }}
+                      onClick={() => setExpandedContainerId(isOpen ? null : c.container_id)}
+                    >
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</div>
                         <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>
@@ -219,7 +236,7 @@ export default function ToLoadPage() {
                         </div>
                       </div>
                       <button
-                        onClick={() => !isBusy && toggleContainer(c)}
+                        onClick={e => { e.stopPropagation(); if (!isBusy) toggleContainer(c); }}
                         disabled={isBusy}
                         style={{
                           padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
@@ -229,23 +246,52 @@ export default function ToLoadPage() {
                           color: allLoaded ? "#86efac" : "white",
                           opacity: isBusy ? 0.6 : 1,
                           whiteSpace: "nowrap",
+                          flexShrink: 0,
                         }}
                       >
                         {isBusy ? "Updating…" : allLoaded ? "Loaded ✓" : "Load into Car"}
                       </button>
+                      <span style={{ fontSize: 16, opacity: 0.4, transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
                     </div>
-                    {total > 0 && (
-                      <button
-                        onClick={() => resetToPick(c.star_party_plan_item.map(p => p.plan_item_id))}
-                        disabled={isBusy}
-                        style={{
-                          marginTop: 10, padding: "6px 0", fontSize: 12,
-                          background: "none", border: "none", color: "#f87171",
-                          cursor: "pointer", opacity: 0.75, textAlign: "left",
-                        }}
-                      >
-                        ↩ Return all to pick list
-                      </button>
+
+                    {/* Drill-down: items in this container */}
+                    {isOpen && (
+                      <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                        {packedPlanItems
+                          .slice()
+                          .sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name))
+                          .map(p => (
+                            <div key={p.plan_item_id} style={{
+                              display: "flex", alignItems: "center", gap: 12,
+                              padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+                            }}>
+                              <div style={{
+                                width: 22, height: 22, borderRadius: 5, flexShrink: 0,
+                                border: `2px solid ${p.loaded ? "#22c55e" : "rgba(255,255,255,0.3)"}`,
+                                background: p.loaded ? "rgba(34,197,94,0.25)" : "transparent",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                              }}>
+                                {p.loaded && <span style={{ color: "#86efac", fontSize: 12, fontWeight: 700 }}>✓</span>}
+                              </div>
+                              <span style={{ fontSize: 14, flex: 1, opacity: p.loaded ? 0.55 : 1, textDecoration: p.loaded ? "line-through" : "none" }}>
+                                {p.star_party_item.name}
+                              </span>
+                            </div>
+                          ))}
+                        <div style={{ padding: "8px 14px" }}>
+                          <button
+                            onClick={() => resetToPick(packedPlanItems.map(p => p.plan_item_id))}
+                            disabled={isBusy}
+                            style={{
+                              padding: "6px 0", fontSize: 12,
+                              background: "none", border: "none", color: "#f87171",
+                              cursor: "pointer", opacity: 0.75, textAlign: "left",
+                            }}
+                          >
+                            ↩ Return all to pick list
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 );
