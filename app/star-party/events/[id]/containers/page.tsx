@@ -23,6 +23,7 @@ type Container = {
   container_type_id: number;
   number: number;
   name: string;
+  description: string | null;
   star_party_container_type: { name: string };
   items: ContainerItem[];
 };
@@ -52,6 +53,8 @@ export default function ManageContainersPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState<Set<number>>(new Set());
+  const [descDraft, setDescDraft] = useState<Record<number, string>>({});
+  const [savingDesc, setSavingDesc] = useState<Set<number>>(new Set());
   const [removingItem, setRemovingItem] = useState<Set<number>>(new Set());
   const [addingItem, setAddingItem] = useState<Set<number>>(new Set());
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -63,7 +66,7 @@ export default function ManageContainersPage() {
       supabase.from("star_party_event").select("name").eq("event_id", id).single(),
       supabase
         .from("star_party_container")
-        .select("container_id, container_type_id, number, name, star_party_container_type(name)")
+        .select("container_id, container_type_id, number, name, description, star_party_container_type(name)")
         .eq("event_id", id)
         .order("container_type_id")
         .order("number"),
@@ -150,6 +153,19 @@ export default function ManageContainersPage() {
     }
     setSavingName(prev => { const n = new Set(prev); n.delete(containerId); return n; });
     setEditingId(null);
+  }
+
+  async function saveDescription(containerId: number, value: string) {
+    const trimmed = value.trim();
+    setSavingDesc(prev => new Set(prev).add(containerId));
+    await supabase
+      .from("star_party_container")
+      .update({ description: trimmed || null })
+      .eq("container_id", containerId);
+    setContainers(prev => prev.map(c =>
+      c.container_id === containerId ? { ...c, description: trimmed || null } : c
+    ));
+    setSavingDesc(prev => { const n = new Set(prev); n.delete(containerId); return n; });
   }
 
   async function removeItem(planItemId: number, containerId: number) {
@@ -270,7 +286,13 @@ export default function ManageContainersPage() {
                 {/* Header */}
                 <div
                   style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: isEditing ? "default" : "pointer" }}
-                  onClick={() => { if (!isEditing) setExpandedId(isOpen ? null : c.container_id); }}
+                  onClick={() => {
+                    if (!isEditing) {
+                      const opening = !isOpen;
+                      setExpandedId(opening ? c.container_id : null);
+                      if (opening) setDescDraft(prev => ({ ...prev, [c.container_id]: c.description ?? "" }));
+                    }
+                  }}
                 >
                   {isEditing ? (
                     <input
@@ -296,7 +318,10 @@ export default function ManageContainersPage() {
                         {c.name}
                         {isLoose && <span style={{ fontSize: 11, opacity: 0.45, marginLeft: 8, fontWeight: 400 }}>default</span>}
                       </div>
-                      <div style={{ fontSize: 11, opacity: 0.45, marginTop: 1 }}>
+                      {c.description && (
+                        <div style={{ fontSize: 12, opacity: 0.6, marginTop: 1 }}>{c.description}</div>
+                      )}
+                      <div style={{ fontSize: 11, opacity: 0.4, marginTop: 1 }}>
                         {c.star_party_container_type.name} · {c.items.length} item{c.items.length !== 1 ? "s" : ""}
                       </div>
                     </div>
@@ -339,6 +364,29 @@ export default function ManageContainersPage() {
                 {/* Expanded body */}
                 {isOpen && (
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+
+                    {/* Description field */}
+                    <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                      <label style={{ fontSize: 11, opacity: 0.5, fontWeight: 600, letterSpacing: "0.05em", display: "block", marginBottom: 6 }}>
+                        DESCRIPTION
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Cooking equipment, Warm clothing…"
+                        value={descDraft[c.container_id] ?? ""}
+                        onChange={e => setDescDraft(prev => ({ ...prev, [c.container_id]: e.target.value }))}
+                        onBlur={() => saveDescription(c.container_id, descDraft[c.container_id] ?? "")}
+                        onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        disabled={savingDesc.has(c.container_id)}
+                        style={{
+                          width: "100%", boxSizing: "border-box",
+                          background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
+                          borderRadius: 8, padding: "9px 12px", color: "white", fontSize: 14,
+                          outline: "none", opacity: savingDesc.has(c.container_id) ? 0.5 : 1,
+                        }}
+                        onFocus={e => (e.target.style.borderColor = "rgba(59,130,246,0.6)")}
+                      />
+                    </div>
 
                     {/* Items in container */}
                     {isEmpty ? (

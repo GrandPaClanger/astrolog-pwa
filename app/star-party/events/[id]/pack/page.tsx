@@ -23,6 +23,7 @@ type Container = {
   container_type_id: number;
   number: number;
   name: string;
+  description: string | null;
   star_party_container_type: { name: string };
 };
 
@@ -82,7 +83,7 @@ export default function ToPackPage() {
         .eq("status", "packed"),
       supabase
         .from("star_party_container")
-        .select("container_id, container_type_id, number, name, star_party_container_type(name)")
+        .select("container_id, container_type_id, number, name, description, star_party_container_type(name)")
         .eq("event_id", id)
         .order("container_type_id")
         .order("number"),
@@ -380,7 +381,12 @@ export default function ToPackPage() {
                     style={{ flex: 1, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(59,130,246,0.5)", borderRadius: 6, padding: "4px 8px", color: "white", fontSize: 15, fontWeight: 600, outline: "none" }}
                   />
                 ) : (
-                  <span style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>{c.name}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</div>
+                    {c.description && (
+                      <div style={{ fontSize: 12, opacity: 0.55, marginTop: 1 }}>{c.description}</div>
+                    )}
+                  </div>
                 )}
                 <button
                   onClick={e => { e.stopPropagation(); setEditingContainerId(c.container_id); setContainerNameDraft(c.name); }}

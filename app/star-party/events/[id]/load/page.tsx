@@ -17,6 +17,7 @@ type ContainerPlanItem = {
 type ContainerWithItems = {
   container_id: number;
   name: string;
+  description: string | null;
   star_party_container_type: { name: string };
   star_party_plan_item: ContainerPlanItem[];
 };
@@ -61,7 +62,7 @@ export default function ToLoadPage() {
       supabase.from("star_party_event").select("name").eq("event_id", id).single(),
       supabase
         .from("star_party_container")
-        .select(`container_id, name, number, star_party_container_type(name), star_party_plan_item(plan_item_id, loaded, status, star_party_item(name))`)
+        .select(`container_id, name, description, number, star_party_container_type(name), star_party_plan_item(plan_item_id, loaded, status, star_party_item(name))`)
         .eq("event_id", id)
         .order("container_type_id")
         .order("number"),
@@ -231,7 +232,10 @@ export default function ToLoadPage() {
                     >
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</div>
-                        <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>
+                        {c.description && (
+                          <div style={{ fontSize: 12, opacity: 0.6, marginTop: 1 }}>{c.description}</div>
+                        )}
+                        <div style={{ fontSize: 12, opacity: 0.5, marginTop: 2 }}>
                           {loaded} / {total} item{total !== 1 ? "s" : ""} loaded
                         </div>
                       </div>
