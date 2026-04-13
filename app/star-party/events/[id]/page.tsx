@@ -67,6 +67,7 @@ export default function RequiredItemsPage() {
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<Set<number>>(new Set());
+  const [search, setSearch] = useState("");
 
   async function load() {
     setLoading(true);
@@ -189,9 +190,75 @@ export default function RequiredItemsPage() {
         ))}
       </div>
 
+      {/* Search */}
+      <div style={{ position: "relative", marginBottom: 20 }}>
+        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 16, opacity: 0.4, pointerEvents: "none" }}>🔍</span>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search items…"
+          style={{
+            width: "100%", boxSizing: "border-box",
+            background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 10, padding: "10px 38px 10px 38px", color: "white",
+            fontSize: 16, outline: "none",
+          }}
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 18, cursor: "pointer", padding: "4px 6px" }}
+          >×</button>
+        )}
+      </div>
+
       {planItems.length === 0 ? (
         <p style={{ opacity: 0.6 }}>No items on this plan.</p>
-      ) : (
+      ) : search.trim() ? (() => {
+        const q = search.trim().toLowerCase();
+        const results = planItems.filter(p => p.star_party_item.name.toLowerCase().includes(q));
+        if (results.length === 0) return (
+          <p style={{ opacity: 0.55, textAlign: "center", padding: "24px 0" }}>No items match &ldquo;{search.trim()}&rdquo;</p>
+        );
+        return (
+          <div>
+            {results
+              .slice()
+              .sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name))
+              .map(pi => (
+                <div
+                  key={pi.plan_item_id}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "11px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
+                >
+                  <div>
+                    <div style={{ fontSize: 15 }}>{pi.star_party_item.name}</div>
+                    <div style={{ fontSize: 11, opacity: 0.45, marginTop: 2 }}>
+                      {categories.find(c => c.slug === pi.star_party_item.category)?.label ?? pi.star_party_item.category}
+                      {pi.star_party_item.sub_category && ` · ${pi.star_party_item.sub_category}`}
+                      {pi.status === "packed" && pi.star_party_container && ` · ${pi.star_party_container.name}`}
+                    </div>
+                  </div>
+                  {pi.status === "to_pick" ? (
+                    <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
+                      {STATUS_LABEL[pi.status]}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => undoStatus(pi)}
+                      disabled={updating.has(pi.plan_item_id)}
+                      title={UNDO_LABEL[pi.status]}
+                      style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1, flexShrink: 0 }}
+                    >
+                      {STATUS_LABEL[pi.status]}
+                      <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                    </button>
+                  )}
+                </div>
+              ))}
+          </div>
+        );
+      })() : (
         sortedCatSlugs.map(slug => {
           const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
           const subs = grouped[slug];
@@ -249,3 +316,4 @@ export default function RequiredItemsPage() {
     </main>
   );
 }
+
