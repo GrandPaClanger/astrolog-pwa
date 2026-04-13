@@ -31,6 +31,7 @@ export default function ToPickPage() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<Set<number>>(new Set());
+  const [search, setSearch] = useState("");
 
   async function load() {
     setLoading(true);
@@ -142,11 +143,68 @@ export default function ToPickPage() {
         </div>
       ) : (
         <>
+          {/* Search box */}
+          <div style={{ position: "relative", marginBottom: 16 }}>
+            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 16, opacity: 0.4, pointerEvents: "none" }}>🔍</span>
+            <input
+              type="search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search items…"
+              style={{
+                width: "100%", boxSizing: "border-box",
+                padding: "12px 40px 12px 40px",
+                borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(0,0,0,0.3)", color: "white",
+                fontSize: 16, outline: "none",
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 20, cursor: "pointer", padding: "4px 6px", lineHeight: 1 }}
+              >×</button>
+            )}
+          </div>
+
           <p style={{ fontSize: 13, opacity: 0.55, marginBottom: 16 }}>
             Tap an item to mark it as picked. It will disappear from this list.
           </p>
 
-          {sortedCatSlugs.map(slug => {
+          {/* Flat search results */}
+          {search.trim() ? (() => {
+            const q = search.trim().toLowerCase();
+            const matches = items.filter(pi => pi.star_party_item.name.toLowerCase().includes(q));
+            if (matches.length === 0) return (
+              <p style={{ opacity: 0.5, fontSize: 14, textAlign: "center", padding: "24px 0" }}>No items match &ldquo;{search}&rdquo;</p>
+            );
+            return (
+              <div>
+                <p style={{ fontSize: 12, opacity: 0.45, marginBottom: 8 }}>{matches.length} match{matches.length !== 1 ? "es" : ""}</p>
+                {matches.map(pi => (
+                  <div
+                    key={pi.plan_item_id}
+                    style={{ ...rowStyle }}
+                    onClick={() => markPicked(pi)}
+                  >
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 6,
+                      border: "2px solid rgba(255,255,255,0.35)",
+                      background: "transparent", flexShrink: 0,
+                      opacity: updating.has(pi.plan_item_id) ? 0.4 : 1,
+                    }} />
+                    <div>
+                      <div style={{ fontSize: 16 }}>{pi.star_party_item.name}</div>
+                      <div style={{ fontSize: 11, opacity: 0.45, marginTop: 2 }}>
+                        {categories.find(c => c.slug === pi.star_party_item.category)?.label ?? pi.star_party_item.category}
+                        {pi.star_party_item.sub_category ? ` · ${pi.star_party_item.sub_category}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })() : sortedCatSlugs.map(slug => {
             const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
             const subs = grouped[slug];
             const catTotal = Object.values(subs).reduce((n, arr) => n + arr.length, 0);
