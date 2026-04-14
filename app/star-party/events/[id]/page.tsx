@@ -18,6 +18,7 @@ type SPEvent = {
 type PlanItem = {
   plan_item_id: number;
   status: "to_pick" | "picked" | "packed";
+  loaded: boolean;
   container_id: number | null;
   star_party_item: {
     item_id: number;
@@ -40,12 +41,14 @@ const STATUS_LABEL: Record<string, string> = {
   to_pick: "To Pick",
   picked: "Picked",
   packed: "Packed",
+  loaded: "Loaded",
 };
 
 const STATUS_COLOR: Record<string, React.CSSProperties> = {
   to_pick: { background: "rgba(251,191,36,0.2)", color: "#fbbf24" },
   picked: { background: "rgba(59,130,246,0.2)", color: "#93c5fd" },
   packed: { background: "rgba(34,197,94,0.2)", color: "#86efac" },
+  loaded: { background: "rgba(167,139,250,0.2)", color: "#a78bfa" },
 };
 
 const PREV_STATUS: Record<string, "to_pick" | "picked"> = {
@@ -56,6 +59,7 @@ const PREV_STATUS: Record<string, "to_pick" | "picked"> = {
 const UNDO_LABEL: Record<string, string> = {
   picked: "Un-pick",
   packed: "Un-pack",
+  loaded: "Un-load",
 };
 
 export default function RequiredItemsPage() {
@@ -77,7 +81,7 @@ export default function RequiredItemsPage() {
       supabase.from("star_party_category").select("slug, label").order("sort_order"),
       supabase
         .from("star_party_plan_item")
-        .select("plan_item_id, status, container_id, star_party_item(item_id, name, category, sub_category, sort_order), star_party_container(name)")
+        .select("plan_item_id, status, loaded, container_id, star_party_item(item_id, name, category, sub_category, sort_order), star_party_container(name)")
         .eq("event_id", id)
         .order("status"),
     ]);
@@ -102,14 +106,28 @@ export default function RequiredItemsPage() {
     setRemoving(s => { const n = new Set(s); n.delete(pi.plan_item_id); return n; });
   }
 
+  async function undoLoaded(pi: PlanItem) {
+    setUpdating(s => new Set(s).add(pi.plan_item_id));
+    setPlanItems(items => items.map(p => p.plan_item_id === pi.plan_item_id ? { ...p, loaded: false } : p));
+    const { error: err } = await supabase
+      .from("star_party_plan_item")
+      .update({ loaded: false })
+      .eq("plan_item_id", pi.plan_item_id);
+    if (err) {
+      setPlanItems(items => items.map(p => p.plan_item_id === pi.plan_item_id ? { ...p, loaded: true } : p));
+      alert(err.message);
+    }
+    setUpdating(s => { const n = new Set(s); n.delete(pi.plan_item_id); return n; });
+  }
+
   async function undoStatus(pi: PlanItem) {
     const prev = PREV_STATUS[pi.status];
     if (!prev) return;
     setUpdating(s => new Set(s).add(pi.plan_item_id));
-    setPlanItems(items => items.map(p => p.plan_item_id === pi.plan_item_id ? { ...p, status: prev } : p));
+    setPlanItems(items => items.map(p => p.plan_item_id === pi.plan_item_id ? { ...p, status: prev, loaded: false } : p));
     const { error: err } = await supabase
       .from("star_party_plan_item")
-      .update({ status: prev })
+      .update({ status: prev, loaded: false })
       .eq("plan_item_id", pi.plan_item_id);
     if (err) {
       setPlanItems(items => items.map(p => p.plan_item_id === pi.plan_item_id ? { ...p, status: pi.status } : p));
@@ -125,7 +143,8 @@ export default function RequiredItemsPage() {
 
   const toPick = planItems.filter(p => p.status === "to_pick").length;
   const picked = planItems.filter(p => p.status === "picked").length;
-  const packed = planItems.filter(p => p.status === "packed").length;
+  const packed = planItems.filter(p => p.status === "packed" && !p.loaded).length;
+  const loaded = planItems.filter(p => p.status === "packed" && p.loaded).length;
 
   // Dynamic grouping: category slug → sub_category → items
   const catOrder = categories.map(c => c.slug);
@@ -193,13 +212,14 @@ export default function RequiredItemsPage() {
         <Link href={`/star-party/events/${id}/off-plan`} style={tabStyle(false)}>Off Plan</Link>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 24 }}>
         {[
           { label: "To Pick", count: toPick, color: "#fbbf24" },
           { label: "Picked", count: picked, color: "#93c5fd" },
           { label: "Packed", count: packed, color: "#86efac" },
+          { label: "Loaded", count: loaded, color: "#a78bfa" },
         ].map(s => (
-          <div key={s.label} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", padding: "12px 8px", textAlign: "center" }}>
+          <div key={s.label} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", padding: "12px 4px", textAlign: "center" }}>
             <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.count}</div>
             <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>{s.label}</div>
           </div>
@@ -265,9 +285,18 @@ export default function RequiredItemsPage() {
                       >✕</button>
                     )}
                     {pi.status === "to_pick" ? (
-                      <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                        {STATUS_LABEL[pi.status]}
+                      <span style={{ ...STATUS_COLOR["to_pick"], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                        To Pick
                       </span>
+                    ) : pi.status === "packed" && pi.loaded ? (
+                      <button
+                        onClick={() => undoLoaded(pi)}
+                        disabled={updating.has(pi.plan_item_id)}
+                        title="Un-load"
+                        style={{ ...STATUS_COLOR["loaded"], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
+                      >
+                        Loaded <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                      </button>
                     ) : (
                       <button
                         onClick={() => undoStatus(pi)}
@@ -325,21 +354,30 @@ export default function RequiredItemsPage() {
                             style={{ background: "none", border: "none", color: "#f87171", fontSize: 16, cursor: "pointer", padding: "2px 4px", opacity: removing.has(pi.plan_item_id) ? 0.4 : 0.6, lineHeight: 1 }}
                           >✕</button>
                         )}
-                      {pi.status === "to_pick" ? (
-                        <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                          {STATUS_LABEL[pi.status]}
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => undoStatus(pi)}
-                          disabled={updating.has(pi.plan_item_id)}
-                          title={UNDO_LABEL[pi.status]}
-                          style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
-                        >
-                          {STATUS_LABEL[pi.status]}
-                          <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
-                        </button>
-                      )}
+                        {pi.status === "to_pick" ? (
+                          <span style={{ ...STATUS_COLOR["to_pick"], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                            To Pick
+                          </span>
+                        ) : pi.status === "packed" && pi.loaded ? (
+                          <button
+                            onClick={() => undoLoaded(pi)}
+                            disabled={updating.has(pi.plan_item_id)}
+                            title="Un-load"
+                            style={{ ...STATUS_COLOR["loaded"], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
+                          >
+                            Loaded <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => undoStatus(pi)}
+                            disabled={updating.has(pi.plan_item_id)}
+                            title={UNDO_LABEL[pi.status]}
+                            style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
+                          >
+                            {STATUS_LABEL[pi.status]}
+                            <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
