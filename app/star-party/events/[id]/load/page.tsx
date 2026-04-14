@@ -54,6 +54,8 @@ export default function ToLoadPage() {
   const [loading, setLoading] = useState(true);
   const [loadingContainer, setLoadingContainer] = useState<Set<number>>(new Set());
   const [togglingItem, setTogglingItem] = useState<Set<number>>(new Set());
+  const [loadingLoose, setLoadingLoose] = useState(false);
+  const [looseExpanded, setLooseExpanded] = useState(false);
   const [expandedContainerId, setExpandedContainerId] = useState<number | null>(null);
 
   async function load() {
@@ -142,6 +144,21 @@ export default function ToLoadPage() {
       ));
     }
     setTogglingItem(prev => { const n = new Set(prev); n.delete(item.plan_item_id); return n; });
+  }
+
+  async function toggleAllLoose() {
+    if (looseItems.length === 0) return;
+    const allLoaded = looseItems.every(li => li.loaded);
+    const newLoaded = !allLoaded;
+    setLoadingLoose(true);
+    const prev = looseItems;
+    setLooseItems(items => items.map(li => ({ ...li, loaded: newLoaded })));
+    const { error } = await supabase
+      .from("star_party_plan_item")
+      .update({ loaded: newLoaded })
+      .in("plan_item_id", looseItems.map(li => li.plan_item_id));
+    if (error) { alert(error.message); setLooseItems(prev); }
+    setLoadingLoose(false);
   }
 
   if (loading) return <main style={{ padding: 16 }}><p style={{ opacity: 0.6 }}>Loading…</p></main>;
@@ -304,53 +321,90 @@ export default function ToLoadPage() {
           )}
 
           {/* Loose items */}
-          {looseItems.length > 0 && (
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                Loose Items ({looseItems.length})
-              </div>
-              {looseItems.map(li => {
-                const isBusy = togglingItem.has(li.plan_item_id);
-                return (
+          {looseItems.length > 0 && (() => {
+            const looseLoaded = looseItems.filter(li => li.loaded).length;
+            const allLooseLoaded = looseLoaded === looseItems.length;
+            return (
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  Loose Items
+                </div>
+                <div style={{
+                  borderRadius: 10,
+                  border: `1px solid ${allLooseLoaded ? "rgba(34,197,94,0.35)" : "rgba(251,191,36,0.25)"}`,
+                  background: allLooseLoaded ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.03)",
+                  overflow: "hidden",
+                }}>
+                  {/* Card header */}
                   <div
-                    key={li.plan_item_id}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 14,
-                      padding: "13px 4px", borderBottom: "1px solid rgba(255,255,255,0.07)",
-                      minHeight: 52, opacity: isBusy ? 0.5 : 1,
-                    }}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: "pointer" }}
+                    onClick={() => setLooseExpanded(e => !e)}
                   >
-                    {/* Tap checkbox/name to toggle loaded */}
-                    <div
-                      onClick={() => !isBusy && toggleLooseItem(li)}
-                      style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, cursor: isBusy ? "default" : "pointer", userSelect: "none", WebkitTapHighlightColor: "transparent" }}
-                    >
-                      <div style={{
-                        width: 26, height: 26, borderRadius: 6, flexShrink: 0,
-                        border: `2px solid ${li.loaded ? "#22c55e" : "rgba(255,255,255,0.3)"}`,
-                        background: li.loaded ? "rgba(34,197,94,0.25)" : "transparent",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        {li.loaded && <span style={{ color: "#86efac", fontSize: 14, fontWeight: 700 }}>✓</span>}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: "#fbbf24" }}>Loose</div>
+                      <div style={{ fontSize: 12, opacity: 0.5, marginTop: 2 }}>
+                        {looseLoaded} / {looseItems.length} item{looseItems.length !== 1 ? "s" : ""} loaded
                       </div>
-                      <span style={{ fontSize: 15, textDecoration: li.loaded ? "line-through" : "none", opacity: li.loaded ? 0.55 : 1 }}>
-                        {li.star_party_item.name}
-                      </span>
                     </div>
-                    {/* Reset to pick list */}
                     <button
-                      onClick={() => !isBusy && resetToPick([li.plan_item_id])}
-                      disabled={isBusy}
-                      title="Return to pick list"
-                      style={{ background: "none", border: "none", color: "#f87171", fontSize: 18, cursor: "pointer", padding: "4px 6px", flexShrink: 0, opacity: 0.75 }}
+                      onClick={e => { e.stopPropagation(); if (!loadingLoose) toggleAllLoose(); }}
+                      disabled={loadingLoose}
+                      style={{
+                        padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                        border: allLooseLoaded ? "1px solid rgba(34,197,94,0.4)" : "none",
+                        cursor: loadingLoose ? "default" : "pointer",
+                        background: allLooseLoaded ? "rgba(34,197,94,0.15)" : "#3b82f6",
+                        color: allLooseLoaded ? "#86efac" : "white",
+                        opacity: loadingLoose ? 0.6 : 1,
+                        whiteSpace: "nowrap", flexShrink: 0,
+                      }}
                     >
-                      ↩
+                      {loadingLoose ? "Updating…" : allLooseLoaded ? "Loaded ✓" : "Load into Car"}
                     </button>
+                    <span style={{ fontSize: 16, opacity: 0.4, transform: looseExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
                   </div>
-                );
-              })}
-            </div>
-          )}
+
+                  {/* Expanded item list */}
+                  {looseExpanded && (
+                    <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                      {looseItems
+                        .slice()
+                        .sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name))
+                        .map(li => {
+                          const isBusy = togglingItem.has(li.plan_item_id);
+                          return (
+                            <div key={li.plan_item_id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", opacity: isBusy ? 0.5 : 1 }}>
+                              <div
+                                onClick={() => !isBusy && toggleLooseItem(li)}
+                                style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, cursor: isBusy ? "default" : "pointer", userSelect: "none", WebkitTapHighlightColor: "transparent" }}
+                              >
+                                <div style={{
+                                  width: 22, height: 22, borderRadius: 5, flexShrink: 0,
+                                  border: `2px solid ${li.loaded ? "#22c55e" : "rgba(255,255,255,0.3)"}`,
+                                  background: li.loaded ? "rgba(34,197,94,0.25)" : "transparent",
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                }}>
+                                  {li.loaded && <span style={{ color: "#86efac", fontSize: 12, fontWeight: 700 }}>✓</span>}
+                                </div>
+                                <span style={{ fontSize: 14, flex: 1, opacity: li.loaded ? 0.55 : 1, textDecoration: li.loaded ? "line-through" : "none" }}>
+                                  {li.star_party_item.name}
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => !isBusy && resetToPick([li.plan_item_id])}
+                                disabled={isBusy}
+                                title="Return to pick list"
+                                style={{ background: "none", border: "none", color: "#f87171", fontSize: 18, cursor: "pointer", padding: "2px 4px", flexShrink: 0, opacity: 0.75 }}
+                              >↩</button>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
     </main>

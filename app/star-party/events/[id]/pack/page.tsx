@@ -265,7 +265,18 @@ export default function ToPackPage() {
                   {isExpanded && (
                     <div style={{ padding: "10px 4px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", overflowX: "auto" }}>
                       <div style={{ display: "flex", gap: 8, paddingBottom: 4, minWidth: "max-content" }}>
-                        {/* All containers including Loose */}
+                        {/* Loose — pack without a container */}
+                        <button
+                          onClick={() => packItem(pi.plan_item_id, null)}
+                          style={{
+                            padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
+                            border: "1px solid rgba(251,191,36,0.5)", background: "rgba(251,191,36,0.1)",
+                            color: "#fbbf24", cursor: "pointer", whiteSpace: "nowrap",
+                          }}
+                        >
+                          Loose
+                        </button>
+                        {/* All containers */}
                         {containers.map(c => (
                           <button
                             key={c.container_id}
