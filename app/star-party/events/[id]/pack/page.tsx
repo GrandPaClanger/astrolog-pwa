@@ -135,7 +135,9 @@ export default function ToPackPage() {
 
   async function resetToPick(planItemId: number) {
     setPickedItems(prev => prev.filter(p => p.plan_item_id !== planItemId));
+    setPackedItems(prev => prev.filter(p => p.plan_item_id !== planItemId));
     setExpandedId(null);
+    setExpandedLooseItemId(null);
     const { error } = await supabase
       .from("star_party_plan_item")
       .update({ status: "to_pick", container_id: null, loaded: false })
@@ -173,6 +175,7 @@ export default function ToPackPage() {
 
   async function reassignItem(planItemId: number, chip: { containerId: number } | { typeId: number; typeName: string }) {
     setExpandedPackedItemId(null);
+    setExpandedLooseItemId(null);
     let newContainerId: number | null = null;
     if ("containerId" in chip) {
       newContainerId = chip.containerId;
