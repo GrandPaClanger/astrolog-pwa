@@ -339,6 +339,7 @@ if (loading) return <main style={{ padding: 16 }}><p style={{ opacity: 0.6 }}>Lo
                   {/* Item list — always tap individual checkboxes to load */}
                   {looseExpanded && (
                     <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                      <p style={{ fontSize: 11, opacity: 0.4, margin: "8px 14px 2px", fontStyle: "italic" }}>Tap an item to mark it loaded — saves instantly.</p>
                       {looseItems
                         .slice()
                         .sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name))
