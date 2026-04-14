@@ -501,20 +501,19 @@ export default function ToPackPage() {
                   <div key={pi.plan_item_id}>
                     <div
                       onClick={() => !isBusy && setExpandedLooseItemId(isExpanded ? null : pi.plan_item_id)}
-                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: isBusy ? "default" : "pointer", opacity: isBusy ? 0.4 : 1, userSelect: "none", WebkitTapHighlightColor: "transparent" }}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderBottom: isExpanded ? "none" : "1px solid rgba(255,255,255,0.06)", cursor: isBusy ? "default" : "pointer", opacity: isBusy ? 0.4 : 1, userSelect: "none", WebkitTapHighlightColor: "transparent" }}
                     >
                       <span style={{ fontSize: 14, flex: 1 }}>{pi.star_party_item.name}</span>
-                      <button
-                        onClick={e => { e.stopPropagation(); resetToPick(pi.plan_item_id); }}
-                        title="Return to pick list"
-                        style={{ background: "none", border: "none", color: "#f87171", fontSize: 18, cursor: "pointer", padding: "2px 4px", opacity: 0.75, flexShrink: 0 }}
-                      >↩</button>
                       <span style={{ fontSize: 16, opacity: 0.4, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
                     </div>
                     {isExpanded && (
                       <div style={{ padding: "10px 14px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", overflowX: "auto" }}>
                         <p style={{ fontSize: 11, opacity: 0.45, margin: "0 0 8px" }}>Move to container:</p>
                         <div style={{ display: "flex", gap: 8, paddingBottom: 4, minWidth: "max-content" }}>
+                          <button
+                            onClick={() => resetToPick(pi.plan_item_id)}
+                            style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px solid rgba(248,113,113,0.4)", background: "rgba(239,68,68,0.1)", color: "#f87171", cursor: "pointer", whiteSpace: "nowrap" }}
+                          >↩ Return to pick</button>
                           {containers.map(c => (
                             <button
                               key={c.container_id}

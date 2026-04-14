@@ -236,7 +236,7 @@ export default function RequiredItemsPage() {
                     <div style={{ fontSize: 11, opacity: 0.45, marginTop: 2 }}>
                       {categories.find(c => c.slug === pi.star_party_item.category)?.label ?? pi.star_party_item.category}
                       {pi.star_party_item.sub_category && ` · ${pi.star_party_item.sub_category}`}
-                      {pi.status === "packed" && pi.star_party_container && ` · ${pi.star_party_container.name}`}
+                      {pi.status === "packed" && ` · ${pi.star_party_container ? pi.star_party_container.name : "Loose"}`}
                     </div>
                   </div>
                   {pi.status === "to_pick" ? (
