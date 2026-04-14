@@ -67,6 +67,7 @@ export default function RequiredItemsPage() {
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<Set<number>>(new Set());
+  const [removing, setRemoving] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
 
   async function load() {
@@ -84,6 +85,21 @@ export default function RequiredItemsPage() {
     setCategories((catRes.data as Category[]) ?? []);
     setPlanItems((piRes.data as unknown as PlanItem[]) ?? []);
     setLoading(false);
+  }
+
+  async function removeItem(pi: PlanItem) {
+    if (pi.status !== "to_pick") return;
+    setRemoving(s => new Set(s).add(pi.plan_item_id));
+    setPlanItems(items => items.filter(p => p.plan_item_id !== pi.plan_item_id));
+    const { error: err } = await supabase
+      .from("star_party_plan_item")
+      .delete()
+      .eq("plan_item_id", pi.plan_item_id);
+    if (err) {
+      setPlanItems(items => [...items, pi]);
+      alert(err.message);
+    }
+    setRemoving(s => { const n = new Set(s); n.delete(pi.plan_item_id); return n; });
   }
 
   async function undoStatus(pi: PlanItem) {
@@ -239,21 +255,31 @@ export default function RequiredItemsPage() {
                       {pi.status === "packed" && ` · ${pi.star_party_container ? pi.star_party_container.name : "Loose"}`}
                     </div>
                   </div>
-                  {pi.status === "to_pick" ? (
-                    <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
-                      {STATUS_LABEL[pi.status]}
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => undoStatus(pi)}
-                      disabled={updating.has(pi.plan_item_id)}
-                      title={UNDO_LABEL[pi.status]}
-                      style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1, flexShrink: 0 }}
-                    >
-                      {STATUS_LABEL[pi.status]}
-                      <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
-                    </button>
-                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    {pi.status === "to_pick" && (
+                      <button
+                        onClick={() => removeItem(pi)}
+                        disabled={removing.has(pi.plan_item_id)}
+                        title="Remove from plan"
+                        style={{ background: "none", border: "none", color: "#f87171", fontSize: 16, cursor: "pointer", padding: "2px 4px", opacity: removing.has(pi.plan_item_id) ? 0.4 : 0.6, lineHeight: 1 }}
+                      >✕</button>
+                    )}
+                    {pi.status === "to_pick" ? (
+                      <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                        {STATUS_LABEL[pi.status]}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => undoStatus(pi)}
+                        disabled={updating.has(pi.plan_item_id)}
+                        title={UNDO_LABEL[pi.status]}
+                        style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
+                      >
+                        {STATUS_LABEL[pi.status]}
+                        <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
           </div>
@@ -290,8 +316,17 @@ export default function RequiredItemsPage() {
                           </div>
                         )}
                       </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                        {pi.status === "to_pick" && (
+                          <button
+                            onClick={() => removeItem(pi)}
+                            disabled={removing.has(pi.plan_item_id)}
+                            title="Remove from plan"
+                            style={{ background: "none", border: "none", color: "#f87171", fontSize: 16, cursor: "pointer", padding: "2px 4px", opacity: removing.has(pi.plan_item_id) ? 0.4 : 0.6, lineHeight: 1 }}
+                          >✕</button>
+                        )}
                       {pi.status === "to_pick" ? (
-                        <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
+                        <span style={{ ...STATUS_COLOR[pi.status], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
                           {STATUS_LABEL[pi.status]}
                         </span>
                       ) : (
@@ -299,12 +334,13 @@ export default function RequiredItemsPage() {
                           onClick={() => undoStatus(pi)}
                           disabled={updating.has(pi.plan_item_id)}
                           title={UNDO_LABEL[pi.status]}
-                          style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1, flexShrink: 0 }}
+                          style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
                         >
                           {STATUS_LABEL[pi.status]}
                           <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
                         </button>
                       )}
+                      </div>
                     </div>
                   ))}
                 </div>
