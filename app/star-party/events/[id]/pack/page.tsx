@@ -73,6 +73,7 @@ export default function ToPackPage() {
   const [editingContainerId, setEditingContainerId] = useState<number | null>(null);
   const [containerNameDraft, setContainerNameDraft] = useState("");
   const [packing, setPacking] = useState<Set<number>>(new Set());
+  const [expandedLooseItemId, setExpandedLooseItemId] = useState<number | null>(null);
 
   async function loadPacked() {
     const [packedRes, containersRes] = await Promise.all([
@@ -90,24 +91,6 @@ export default function ToPackPage() {
     ]);
     setPackedItems((packedRes.data as unknown as PackedItem[]) ?? []);
     setContainers(sortContainers((containersRes.data as unknown as Container[]) ?? []));
-  }
-
-  async function ensureLooseContainer(types: ContainerType[]): Promise<void> {
-    if (types.length === 0) return;
-    const { data: existing } = await supabase
-      .from("star_party_container")
-      .select("container_id")
-      .eq("event_id", Number(id))
-      .eq("name", "Loose")
-      .maybeSingle();
-    if (existing) return;
-    // Create Loose with number=0 (normal containers start at 1)
-    await supabase.from("star_party_container").insert({
-      event_id: Number(id),
-      container_type_id: types[0].container_type_id,
-      number: 0,
-      name: "Loose",
-    });
   }
 
   async function load() {
@@ -128,7 +111,6 @@ export default function ToPackPage() {
     setEvent(evRes.data as EventMeta ?? null);
     setPickedItems((pickedRes.data as unknown as PickedItem[]) ?? []);
     setContainerTypes(types);
-    await ensureLooseContainer(types);
     await loadPacked();
     setLoading(false);
   }
@@ -500,14 +482,63 @@ export default function ToPackPage() {
           );
         })}
 
-        {/* Legacy loose items (container_id=null) — backward compat */}
+        {/* Loose items — packed but not in a container */}
         {legacyLoose.length > 0 && (
-          <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(251,191,36,0.3)", background: "rgba(251,191,36,0.06)" }}>
-            <p style={{ fontSize: 12, color: "#fbbf24", margin: "0 0 8px", fontWeight: 600 }}>⚠ Unassigned packed items</p>
-            {legacyLoose.map(pi => (
-              <div key={pi.plan_item_id} style={{ fontSize: 14, padding: "4px 0", opacity: 0.8 }}>{pi.star_party_item.name}</div>
-            ))}
-            <p style={{ fontSize: 11, opacity: 0.5, margin: "8px 0 0" }}>These items are packed but not in a container. Open a container and use Add items to assign them, or go to Manage Containers.</p>
+          <div style={{ borderRadius: 10, border: "1px solid rgba(251,191,36,0.25)", background: "rgba(255,255,255,0.03)", marginTop: 4, overflow: "hidden" }}>
+            <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24" }}>
+                Loose ({legacyLoose.length})
+              </span>
+              <span style={{ fontSize: 11, opacity: 0.45, marginLeft: 8 }}>packed individually — tap to reassign</span>
+            </div>
+            {legacyLoose
+              .slice()
+              .sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name))
+              .map(pi => {
+                const isExpanded = expandedLooseItemId === pi.plan_item_id;
+                const isBusy = packing.has(pi.plan_item_id);
+                return (
+                  <div key={pi.plan_item_id}>
+                    <div
+                      onClick={() => !isBusy && setExpandedLooseItemId(isExpanded ? null : pi.plan_item_id)}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: isBusy ? "default" : "pointer", opacity: isBusy ? 0.4 : 1, userSelect: "none", WebkitTapHighlightColor: "transparent" }}
+                    >
+                      <span style={{ fontSize: 14, flex: 1 }}>{pi.star_party_item.name}</span>
+                      <button
+                        onClick={e => { e.stopPropagation(); resetToPick(pi.plan_item_id); }}
+                        title="Return to pick list"
+                        style={{ background: "none", border: "none", color: "#f87171", fontSize: 18, cursor: "pointer", padding: "2px 4px", opacity: 0.75, flexShrink: 0 }}
+                      >↩</button>
+                      <span style={{ fontSize: 16, opacity: 0.4, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
+                    </div>
+                    {isExpanded && (
+                      <div style={{ padding: "10px 14px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", overflowX: "auto" }}>
+                        <p style={{ fontSize: 11, opacity: 0.45, margin: "0 0 8px" }}>Move to container:</p>
+                        <div style={{ display: "flex", gap: 8, paddingBottom: 4, minWidth: "max-content" }}>
+                          {containers.map(c => (
+                            <button
+                              key={c.container_id}
+                              onClick={() => reassignItem(pi.plan_item_id, { containerId: c.container_id })}
+                              style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px solid rgba(99,179,237,0.5)", background: "rgba(59,130,246,0.15)", color: "#93c5fd", cursor: "pointer", whiteSpace: "nowrap" }}
+                            >
+                              {c.name}
+                            </button>
+                          ))}
+                          {containerTypes.map(ct => (
+                            <button
+                              key={ct.container_type_id}
+                              onClick={() => reassignItem(pi.plan_item_id, { typeId: ct.container_type_id, typeName: ct.name })}
+                              style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px dashed rgba(134,239,172,0.5)", background: "rgba(34,197,94,0.1)", color: "#86efac", cursor: "pointer", whiteSpace: "nowrap" }}
+                            >
+                              + New {ct.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>
