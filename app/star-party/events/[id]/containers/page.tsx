@@ -32,11 +32,7 @@ type ContainerType = { container_type_id: number; name: string };
 type EventMeta = { name: string };
 
 function sortContainers(cs: Container[]): Container[] {
-  return [...cs].sort((a, b) => {
-    if (a.name === "Loose" && b.name !== "Loose") return 1;
-    if (b.name === "Loose" && a.name !== "Loose") return -1;
-    return a.container_type_id - b.container_type_id || a.number - b.number;
-  });
+  return [...cs].sort((a, b) => a.container_type_id - b.container_type_id || a.number - b.number);
 }
 
 export default function ManageContainersPage() {
@@ -271,15 +267,14 @@ export default function ManageContainersPage() {
             const isDeleting = deletingId === c.container_id;
             const isEmpty = c.items.length === 0;
             const isAdding = addingToId === c.container_id;
-            const isLoose = c.name === "Loose";
 
             return (
               <div
                 key={c.container_id}
                 style={{
                   borderRadius: 10,
-                  border: isLoose ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.12)",
-                  background: isLoose ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(255,255,255,0.04)",
                   marginBottom: 12, overflow: "hidden",
                 }}
               >
@@ -314,10 +309,7 @@ export default function ManageContainersPage() {
                     />
                   ) : (
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600 }}>
-                        {c.name}
-                        {isLoose && <span style={{ fontSize: 11, opacity: 0.45, marginLeft: 8, fontWeight: 400 }}>default</span>}
-                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</div>
                       {c.description && (
                         <div style={{ fontSize: 12, opacity: 0.6, marginTop: 1 }}>{c.description}</div>
                       )}
@@ -335,26 +327,24 @@ export default function ManageContainersPage() {
                         style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", color: "rgba(255,255,255,0.5)", fontSize: 15, flexShrink: 0 }}
                       >✏️</button>
 
-                      {!isLoose && (
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            if (!isEmpty) return;
-                            if (confirm(`Delete "${c.name}"? This cannot be undone.`)) {
-                              deleteContainer(c.container_id);
-                            }
-                          }}
-                          disabled={!isEmpty || isDeleting}
-                          title={isEmpty ? "Delete container" : "Remove all items first to delete"}
-                          style={{
-                            background: "none", border: "none",
-                            cursor: isEmpty ? "pointer" : "not-allowed",
-                            padding: "4px 6px", fontSize: 15, flexShrink: 0,
-                            color: isEmpty ? "#f87171" : "rgba(255,255,255,0.2)",
-                            opacity: isDeleting ? 0.5 : 1,
-                          }}
-                        >🗑</button>
-                      )}
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (!isEmpty) return;
+                          if (confirm(`Delete "${c.name}"? This cannot be undone.`)) {
+                            deleteContainer(c.container_id);
+                          }
+                        }}
+                        disabled={!isEmpty || isDeleting}
+                        title={isEmpty ? "Delete container" : "Remove all items first to delete"}
+                        style={{
+                          background: "none", border: "none",
+                          cursor: isEmpty ? "pointer" : "not-allowed",
+                          padding: "4px 6px", fontSize: 15, flexShrink: 0,
+                          color: isEmpty ? "#f87171" : "rgba(255,255,255,0.2)",
+                          opacity: isDeleting ? 0.5 : 1,
+                        }}
+                      >🗑</button>
 
                       <span style={{ fontSize: 16, opacity: 0.4, transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
                     </>

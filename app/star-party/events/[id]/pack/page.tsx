@@ -45,11 +45,7 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
 });
 
 function sortContainers(cs: Container[]): Container[] {
-  return [...cs].sort((a, b) => {
-    if (a.name === "Loose" && b.name !== "Loose") return 1;
-    if (b.name === "Loose" && a.name !== "Loose") return -1;
-    return a.container_type_id - b.container_type_id || a.number - b.number;
-  });
+  return [...cs].sort((a, b) => a.container_type_id - b.container_type_id || a.number - b.number);
 }
 
 export default function ToPackPage() {
@@ -271,14 +267,9 @@ export default function ToPackPage() {
                             onClick={() => handleChipTap(pi.plan_item_id, { containerId: c.container_id })}
                             style={{
                               padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
-                              border: c.name === "Loose"
-                                ? "1px solid rgba(255,255,255,0.3)"
-                                : "1px solid rgba(99,179,237,0.5)",
-                              background: c.name === "Loose"
-                                ? "rgba(255,255,255,0.08)"
-                                : "rgba(59,130,246,0.15)",
-                              color: c.name === "Loose" ? "white" : "#93c5fd",
-                              cursor: "pointer", whiteSpace: "nowrap",
+                              border: "1px solid rgba(99,179,237,0.5)",
+                              background: "rgba(59,130,246,0.15)",
+                              color: "#93c5fd", cursor: "pointer", whiteSpace: "nowrap",
                             }}
                           >
                             {c.name}
@@ -410,10 +401,8 @@ export default function ToPackPage() {
                                 <button key={oc.container_id} onClick={() => reassignItem(pi.plan_item_id, { containerId: oc.container_id })}
                                   style={{
                                     padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
-                                    border: oc.name === "Loose" ? "1px solid rgba(255,255,255,0.3)" : "1px solid rgba(99,179,237,0.5)",
-                                    background: oc.name === "Loose" ? "rgba(255,255,255,0.08)" : "rgba(59,130,246,0.15)",
-                                    color: oc.name === "Loose" ? "white" : "#93c5fd",
-                                    cursor: "pointer", whiteSpace: "nowrap",
+                                    border: "1px solid rgba(99,179,237,0.5)", background: "rgba(59,130,246,0.15)",
+                                    color: "#93c5fd", cursor: "pointer", whiteSpace: "nowrap",
                                   }}>
                                   {oc.name}
                                 </button>
