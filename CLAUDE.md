@@ -10,6 +10,10 @@ A Progressive Web App for astronomy planning and logging, built for personal use
 - **Deployment**: Vercel (auto-deploys from `main` branch on GitHub: `GrandPaClanger/astrolog-pwa`)
 - **Auth**: Supabase Auth (Google OAuth + magic link email)
 
+## Preview / verification
+- **Never use local preview (`preview_start`) to verify changes.** All pages require Supabase authentication and the local dev server redirects every protected route to `/login`. Verification is not possible locally.
+- Changes are verified via the live Vercel deployment at **https://astrolog-pwa.vercel.app** after `git push origin main`.
+
 ## Key conventions
 - All pages use `export const dynamic = "force-dynamic"`
 - Supabase client from `@/lib/supabase`
