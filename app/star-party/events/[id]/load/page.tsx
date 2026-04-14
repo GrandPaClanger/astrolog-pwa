@@ -54,8 +54,7 @@ export default function ToLoadPage() {
   const [loading, setLoading] = useState(true);
   const [loadingContainer, setLoadingContainer] = useState<Set<number>>(new Set());
   const [togglingItem, setTogglingItem] = useState<Set<number>>(new Set());
-  const [loadingLoose, setLoadingLoose] = useState(false);
-  const [looseExpanded, setLooseExpanded] = useState(false);
+  const [looseExpanded, setLooseExpanded] = useState(true);
   const [expandedContainerId, setExpandedContainerId] = useState<number | null>(null);
 
   async function load() {
@@ -146,22 +145,7 @@ export default function ToLoadPage() {
     setTogglingItem(prev => { const n = new Set(prev); n.delete(item.plan_item_id); return n; });
   }
 
-  async function toggleAllLoose() {
-    if (looseItems.length === 0) return;
-    const allLoaded = looseItems.every(li => li.loaded);
-    const newLoaded = !allLoaded;
-    setLoadingLoose(true);
-    const prev = looseItems;
-    setLooseItems(items => items.map(li => ({ ...li, loaded: newLoaded })));
-    const { error } = await supabase
-      .from("star_party_plan_item")
-      .update({ loaded: newLoaded })
-      .in("plan_item_id", looseItems.map(li => li.plan_item_id));
-    if (error) { alert(error.message); setLooseItems(prev); }
-    setLoadingLoose(false);
-  }
-
-  if (loading) return <main style={{ padding: 16 }}><p style={{ opacity: 0.6 }}>Loading…</p></main>;
+if (loading) return <main style={{ padding: 16 }}><p style={{ opacity: 0.6 }}>Loading…</p></main>;
 
   // Only count packed items (status='packed') in containers
   const totalItems =
@@ -346,25 +330,13 @@ export default function ToLoadPage() {
                         {looseLoaded} / {looseItems.length} item{looseItems.length !== 1 ? "s" : ""} loaded
                       </div>
                     </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); if (!loadingLoose) toggleAllLoose(); }}
-                      disabled={loadingLoose}
-                      style={{
-                        padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                        border: allLooseLoaded ? "1px solid rgba(34,197,94,0.4)" : "none",
-                        cursor: loadingLoose ? "default" : "pointer",
-                        background: allLooseLoaded ? "rgba(34,197,94,0.15)" : "#3b82f6",
-                        color: allLooseLoaded ? "#86efac" : "white",
-                        opacity: loadingLoose ? 0.6 : 1,
-                        whiteSpace: "nowrap", flexShrink: 0,
-                      }}
-                    >
-                      {loadingLoose ? "Updating…" : allLooseLoaded ? "Loaded ✓" : "Load into Car"}
-                    </button>
+                    {allLooseLoaded && (
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#86efac", flexShrink: 0 }}>All loaded ✓</span>
+                    )}
                     <span style={{ fontSize: 16, opacity: 0.4, transform: looseExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
                   </div>
 
-                  {/* Expanded item list */}
+                  {/* Item list — always tap individual checkboxes to load */}
                   {looseExpanded && (
                     <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                       {looseItems
