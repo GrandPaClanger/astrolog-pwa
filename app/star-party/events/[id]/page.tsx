@@ -73,6 +73,7 @@ export default function RequiredItemsPage() {
   const [updating, setUpdating] = useState<Set<number>>(new Set());
   const [removing, setRemoving] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"to_pick" | "picked" | "packed" | "loaded" | null>(null);
 
   async function load() {
     setLoading(true);
@@ -213,17 +214,30 @@ export default function RequiredItemsPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 24 }}>
-        {[
-          { label: "To Pick", count: toPick, color: "#fbbf24" },
-          { label: "Picked", count: picked, color: "#93c5fd" },
-          { label: "Packed", count: packed, color: "#86efac" },
-          { label: "Loaded", count: loaded, color: "#a78bfa" },
-        ].map(s => (
-          <div key={s.label} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", padding: "12px 4px", textAlign: "center" }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.count}</div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>{s.label}</div>
-          </div>
-        ))}
+        {([
+          { key: "to_pick" as const, label: "To Pick", count: toPick, color: "#fbbf24", border: "rgba(251,191,36,0.5)" },
+          { key: "picked" as const, label: "Picked", count: picked, color: "#93c5fd", border: "rgba(99,179,237,0.5)" },
+          { key: "packed" as const, label: "Packed", count: packed, color: "#86efac", border: "rgba(134,239,172,0.5)" },
+          { key: "loaded" as const, label: "Loaded", count: loaded, color: "#a78bfa", border: "rgba(167,139,250,0.5)" },
+        ]).map(s => {
+          const active = filterStatus === s.key;
+          return (
+            <button
+              key={s.key}
+              onClick={() => setFilterStatus(active ? null : s.key)}
+              style={{
+                borderRadius: 10,
+                border: `1px solid ${active ? s.border : "rgba(255,255,255,0.1)"}`,
+                background: active ? `rgba(${s.key === "to_pick" ? "251,191,36" : s.key === "picked" ? "59,130,246" : s.key === "packed" ? "34,197,94" : "167,139,250"},0.12)` : "rgba(255,255,255,0.03)",
+                padding: "12px 4px", textAlign: "center", cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.count}</div>
+              <div style={{ fontSize: 11, opacity: active ? 0.9 : 0.6, marginTop: 2, color: active ? s.color : "inherit" }}>{s.label}</div>
+            </button>
+          );
+        })}
       </div>
 
       {/* Search */}
@@ -251,142 +265,133 @@ export default function RequiredItemsPage() {
 
       {planItems.length === 0 ? (
         <p style={{ opacity: 0.6 }}>No items on this plan.</p>
-      ) : search.trim() ? (() => {
+      ) : (() => {
+        // Apply status filter
+        const statusFiltered = filterStatus ? planItems.filter(pi => {
+          if (filterStatus === "to_pick") return pi.status === "to_pick";
+          if (filterStatus === "picked") return pi.status === "picked";
+          if (filterStatus === "packed") return pi.status === "packed" && !pi.loaded;
+          if (filterStatus === "loaded") return pi.status === "packed" && pi.loaded;
+          return true;
+        }) : planItems;
+
+        // Apply text search on top
         const q = search.trim().toLowerCase();
-        const results = planItems.filter(p => p.star_party_item.name.toLowerCase().includes(q));
-        if (results.length === 0) return (
-          <p style={{ opacity: 0.55, textAlign: "center", padding: "24px 0" }}>No items match &ldquo;{search.trim()}&rdquo;</p>
-        );
-        return (
-          <div>
-            {results
-              .slice()
-              .sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name))
-              .map(pi => (
-                <div
-                  key={pi.plan_item_id}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "11px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
-                >
-                  <div>
-                    <div style={{ fontSize: 15 }}>{pi.star_party_item.name}</div>
-                    <div style={{ fontSize: 11, opacity: 0.45, marginTop: 2 }}>
-                      {categories.find(c => c.slug === pi.star_party_item.category)?.label ?? pi.star_party_item.category}
-                      {pi.star_party_item.sub_category && ` · ${pi.star_party_item.sub_category}`}
-                      {pi.status === "packed" && ` · ${pi.star_party_container ? pi.star_party_container.name : "Loose"}`}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                    {pi.status === "to_pick" && (
-                      <button
-                        onClick={() => removeItem(pi)}
-                        disabled={removing.has(pi.plan_item_id)}
-                        title="Remove from plan"
-                        style={{ background: "none", border: "none", color: "#f87171", fontSize: 16, cursor: "pointer", padding: "2px 4px", opacity: removing.has(pi.plan_item_id) ? 0.4 : 0.6, lineHeight: 1 }}
-                      >✕</button>
-                    )}
-                    {pi.status === "to_pick" ? (
-                      <span style={{ ...STATUS_COLOR["to_pick"], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                        To Pick
-                      </span>
-                    ) : pi.status === "packed" && pi.loaded ? (
-                      <button
-                        onClick={() => undoLoaded(pi)}
-                        disabled={updating.has(pi.plan_item_id)}
-                        title="Un-load"
-                        style={{ ...STATUS_COLOR["loaded"], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
-                      >
-                        Loaded <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => undoStatus(pi)}
-                        disabled={updating.has(pi.plan_item_id)}
-                        title={UNDO_LABEL[pi.status]}
-                        style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
-                      >
-                        {STATUS_LABEL[pi.status]}
-                        <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+        const flatItems = q ? statusFiltered.filter(p => p.star_party_item.name.toLowerCase().includes(q)) : statusFiltered;
+
+        // Helper: render a single item row (flat view)
+        const renderRow = (pi: PlanItem) => (
+          <div
+            key={pi.plan_item_id}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "11px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
+          >
+            <div>
+              <div style={{ fontSize: 15 }}>{pi.star_party_item.name}</div>
+              <div style={{ fontSize: 11, opacity: 0.45, marginTop: 2 }}>
+                {categories.find(c => c.slug === pi.star_party_item.category)?.label ?? pi.star_party_item.category}
+                {pi.star_party_item.sub_category && ` · ${pi.star_party_item.sub_category}`}
+                {pi.status === "packed" && ` · ${pi.star_party_container ? pi.star_party_container.name : "Loose"}`}
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+              {pi.status === "to_pick" && (
+                <button
+                  onClick={() => removeItem(pi)}
+                  disabled={removing.has(pi.plan_item_id)}
+                  title="Remove from plan"
+                  style={{ background: "none", border: "none", color: "#f87171", fontSize: 16, cursor: "pointer", padding: "2px 4px", opacity: removing.has(pi.plan_item_id) ? 0.4 : 0.6, lineHeight: 1 }}
+                >✕</button>
+              )}
+              {pi.status === "to_pick" ? (
+                <span style={{ ...STATUS_COLOR["to_pick"], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>To Pick</span>
+              ) : pi.status === "packed" && pi.loaded ? (
+                <button onClick={() => undoLoaded(pi)} disabled={updating.has(pi.plan_item_id)} title="Un-load"
+                  style={{ ...STATUS_COLOR["loaded"], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}>
+                  Loaded <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                </button>
+              ) : (
+                <button onClick={() => undoStatus(pi)} disabled={updating.has(pi.plan_item_id)} title={UNDO_LABEL[pi.status]}
+                  style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}>
+                  {STATUS_LABEL[pi.status]} <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                </button>
+              )}
+            </div>
           </div>
         );
-      })() : (
-        sortedCatSlugs.map(slug => {
-          const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
-          const subs = grouped[slug];
-          const sortedSubs = Object.keys(subs).sort((a, b) =>
-            a === "(No sub-category)" ? -1 : b === "(No sub-category)" ? 1 : a.localeCompare(b)
+
+        // Flat view: search or filter active
+        if (search.trim() || filterStatus) {
+          if (flatItems.length === 0) return (
+            <p style={{ opacity: 0.55, textAlign: "center", padding: "24px 0" }}>No items match.</p>
           );
           return (
-            <div key={slug} style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                {catLabel}
-              </div>
-              {sortedSubs.map(sub => (
-                <div key={sub} style={{ marginBottom: 12 }}>
-                  {sub !== "(No sub-category)" && (
-                    <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 4px", textTransform: "uppercase" }}>
-                      {sub}
-                    </div>
-                  )}
-                  {subs[sub].map(pi => (
-                    <div
-                      key={pi.plan_item_id}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: `11px 4px 11px ${sub !== "(No sub-category)" ? 16 : 4}px`, borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
-                    >
-                      <div>
-                        <div style={{ fontSize: 15 }}>{pi.star_party_item.name}</div>
-                        {pi.status === "packed" && (
-                          <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>
-                            {pi.star_party_container ? pi.star_party_container.name : "Loose"}
+            <div>{flatItems.slice().sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name)).map(renderRow)}</div>
+          );
+        }
+
+        // Grouped view: no filter, no search
+        return (
+          <>
+            {sortedCatSlugs.map(slug => {
+              const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
+              const subs = grouped[slug];
+              const sortedSubs = Object.keys(subs).sort((a, b) =>
+                a === "(No sub-category)" ? -1 : b === "(No sub-category)" ? 1 : a.localeCompare(b)
+              );
+              return (
+                <div key={slug} style={{ marginBottom: 28 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                    {catLabel}
+                  </div>
+                  {sortedSubs.map(sub => (
+                    <div key={sub} style={{ marginBottom: 12 }}>
+                      {sub !== "(No sub-category)" && (
+                        <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 4px", textTransform: "uppercase" }}>
+                          {sub}
+                        </div>
+                      )}
+                      {subs[sub].map(pi => (
+                        <div
+                          key={pi.plan_item_id}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: `11px 4px 11px ${sub !== "(No sub-category)" ? 16 : 4}px`, borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
+                        >
+                          <div>
+                            <div style={{ fontSize: 15 }}>{pi.star_party_item.name}</div>
+                            {pi.status === "packed" && (
+                              <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>
+                                {pi.star_party_container ? pi.star_party_container.name : "Loose"}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                        {pi.status === "to_pick" && (
-                          <button
-                            onClick={() => removeItem(pi)}
-                            disabled={removing.has(pi.plan_item_id)}
-                            title="Remove from plan"
-                            style={{ background: "none", border: "none", color: "#f87171", fontSize: 16, cursor: "pointer", padding: "2px 4px", opacity: removing.has(pi.plan_item_id) ? 0.4 : 0.6, lineHeight: 1 }}
-                          >✕</button>
-                        )}
-                        {pi.status === "to_pick" ? (
-                          <span style={{ ...STATUS_COLOR["to_pick"], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                            To Pick
-                          </span>
-                        ) : pi.status === "packed" && pi.loaded ? (
-                          <button
-                            onClick={() => undoLoaded(pi)}
-                            disabled={updating.has(pi.plan_item_id)}
-                            title="Un-load"
-                            style={{ ...STATUS_COLOR["loaded"], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
-                          >
-                            Loaded <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => undoStatus(pi)}
-                            disabled={updating.has(pi.plan_item_id)}
-                            title={UNDO_LABEL[pi.status]}
-                            style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}
-                          >
-                            {STATUS_LABEL[pi.status]}
-                            <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
-                          </button>
-                        )}
-                      </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                            {pi.status === "to_pick" && (
+                              <button onClick={() => removeItem(pi)} disabled={removing.has(pi.plan_item_id)} title="Remove from plan"
+                                style={{ background: "none", border: "none", color: "#f87171", fontSize: 16, cursor: "pointer", padding: "2px 4px", opacity: removing.has(pi.plan_item_id) ? 0.4 : 0.6, lineHeight: 1 }}>✕</button>
+                            )}
+                            {pi.status === "to_pick" ? (
+                              <span style={{ ...STATUS_COLOR["to_pick"], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>To Pick</span>
+                            ) : pi.status === "packed" && pi.loaded ? (
+                              <button onClick={() => undoLoaded(pi)} disabled={updating.has(pi.plan_item_id)} title="Un-load"
+                                style={{ ...STATUS_COLOR["loaded"], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}>
+                                Loaded <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                              </button>
+                            ) : (
+                              <button onClick={() => undoStatus(pi)} disabled={updating.has(pi.plan_item_id)} title={UNDO_LABEL[pi.status]}
+                                style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}>
+                                {STATUS_LABEL[pi.status]} <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
-              ))}
-            </div>
-          );
-        })
-      )}
+              );
+            })}
+          </>
+        );
+      })()}
     </main>
   );
 }
