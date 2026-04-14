@@ -173,11 +173,13 @@ export default function ToPackPage() {
     setContainers(prev => sortContainers(prev.map(c => c.container_id === containerId ? { ...c, name: name.trim() } : c)));
   }
 
-  async function reassignItem(planItemId: number, chip: { containerId: number } | { typeId: number; typeName: string }) {
+  async function reassignItem(planItemId: number, chip: "remove" | { containerId: number } | { typeId: number; typeName: string }) {
     setExpandedPackedItemId(null);
     setExpandedLooseItemId(null);
     let newContainerId: number | null = null;
-    if ("containerId" in chip) {
+    if (chip === "remove") {
+      newContainerId = null; // moves to Loose section
+    } else if ("containerId" in chip) {
       newContainerId = chip.containerId;
     } else {
       const newId = await createContainer(chip.typeId, chip.typeName);
@@ -400,6 +402,12 @@ export default function ToPackPage() {
                           <div style={{ padding: "10px 14px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", overflowX: "auto" }}>
                             <p style={{ fontSize: 11, opacity: 0.45, margin: "0 0 8px" }}>Move to:</p>
                             <div style={{ display: "flex", gap: 8, paddingBottom: 4, minWidth: "max-content" }}>
+                              <button
+                                onClick={() => reassignItem(pi.plan_item_id, "remove")}
+                                style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.1)", color: "#f87171", cursor: "pointer", whiteSpace: "nowrap" }}
+                              >
+                                Remove
+                              </button>
                               {containers.filter(oc => oc.container_id !== c.container_id).map(oc => (
                                 <button key={oc.container_id} onClick={() => reassignItem(pi.plan_item_id, { containerId: oc.container_id })}
                                   style={{
