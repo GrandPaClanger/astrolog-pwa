@@ -31,6 +31,7 @@ type PlanItem = {
 };
 
 type Category = { slug: string; label: string };
+type SubCategory = { sub_category_id: number; category_slug: string; name: string };
 
 function fmtDate(d: string) {
   const dt = new Date(d + "T00:00:00");
@@ -68,16 +69,19 @@ export default function RequiredItemsPage() {
 
   const [event, setEvent] = useState<SPEvent | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<Set<number>>(new Set());
   const [removing, setRemoving] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"to_pick" | "picked" | "packed" | "loaded" | null>(null);
+  const [filterCat, setFilterCat] = useState("");
+  const [filterSub, setFilterSub] = useState("");
 
   async function load() {
     setLoading(true);
-    const [evRes, catRes, piRes] = await Promise.all([
+    const [evRes, catRes, piRes, subRes] = await Promise.all([
       supabase.from("star_party_event").select("event_id, name, date_from, date_to, is_current").eq("event_id", id).single(),
       supabase.from("star_party_category").select("slug, label").order("sort_order"),
       supabase
@@ -85,9 +89,11 @@ export default function RequiredItemsPage() {
         .select("plan_item_id, status, loaded, container_id, star_party_item(item_id, name, category, sub_category, sort_order), star_party_container(name)")
         .eq("event_id", id)
         .order("status"),
+      supabase.from("star_party_sub_category").select("sub_category_id, category_slug, name").order("sort_order").order("name"),
     ]);
     setEvent(evRes.data as SPEvent ?? null);
     setCategories((catRes.data as Category[]) ?? []);
+    setSubCategories((subRes.data as SubCategory[]) ?? []);
     setPlanItems((piRes.data as unknown as PlanItem[]) ?? []);
     setLoading(false);
   }
@@ -147,10 +153,23 @@ export default function RequiredItemsPage() {
   const packed = planItems.filter(p => p.status === "packed" && !p.loaded).length;
   const loaded = planItems.filter(p => p.status === "packed" && p.loaded).length;
 
+  const filterSubOptions = filterCat
+    ? subCategories.filter(s => s.category_slug === filterCat)
+    : subCategories;
+
+  // Apply cat/sub pre-filter (used for both grouped view and as base for flat view)
+  const catSubFiltered = (filterCat || filterSub)
+    ? planItems.filter(pi => {
+        if (filterCat && pi.star_party_item.category !== filterCat) return false;
+        if (filterSub && (pi.star_party_item.sub_category ?? "") !== filterSub) return false;
+        return true;
+      })
+    : planItems;
+
   // Dynamic grouping: category slug → sub_category → items
   const catOrder = categories.map(c => c.slug);
   const grouped: Record<string, Record<string, PlanItem[]>> = {};
-  for (const pi of planItems) {
+  for (const pi of catSubFiltered) {
     const cat = pi.star_party_item.category;
     const sub = pi.star_party_item.sub_category ?? "(No sub-category)";
     if (!grouped[cat]) grouped[cat] = {};
@@ -186,7 +205,10 @@ export default function RequiredItemsPage() {
     <main style={{ padding: "16px", maxWidth: 600, margin: "0 auto", paddingBottom: 40 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <Link href="/star-party" style={{ fontSize: 13, opacity: 0.6, textDecoration: "none" }}>← Star Parties</Link>
-        <Link href={`/star-party/events/${id}/print`} style={{ fontSize: 13, opacity: 0.6, textDecoration: "none" }}>🖨 Packing List</Link>
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          <Link href="/star-party/items" style={{ fontSize: 13, opacity: 0.6, textDecoration: "none" }}>✏️ Manage Items</Link>
+          <Link href={`/star-party/events/${id}/print`} style={{ fontSize: 13, opacity: 0.6, textDecoration: "none" }}>🖨 Packing List</Link>
+        </div>
       </div>
 
       <div style={{ marginBottom: 16 }}>
@@ -240,6 +262,37 @@ export default function RequiredItemsPage() {
         })}
       </div>
 
+      {/* Category & Sub-Category Filters */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+        <div>
+          <label style={{ fontSize: 11, opacity: 0.6, marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.05em" }}>Category</label>
+          <select
+            value={filterCat}
+            onChange={e => { setFilterCat(e.target.value); setFilterSub(""); }}
+            style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(0,0,0,0.35)", color: "white", fontSize: 14 }}
+          >
+            <option value="">All categories</option>
+            {categories.map(c => (
+              <option key={c.slug} value={c.slug}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 11, opacity: 0.6, marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sub-Category</label>
+          <select
+            value={filterSub}
+            onChange={e => setFilterSub(e.target.value)}
+            disabled={filterSubOptions.length === 0}
+            style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(0,0,0,0.35)", color: "white", fontSize: 14, opacity: filterSubOptions.length === 0 ? 0.4 : 1 }}
+          >
+            <option value="">All sub-categories</option>
+            {filterSubOptions.map(s => (
+              <option key={s.sub_category_id} value={s.name}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Search */}
       <div style={{ position: "relative", marginBottom: 20 }}>
         <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 16, opacity: 0.4, pointerEvents: "none" }}>🔍</span>
@@ -266,14 +319,14 @@ export default function RequiredItemsPage() {
       {planItems.length === 0 ? (
         <p style={{ opacity: 0.6 }}>No items on this plan.</p>
       ) : (() => {
-        // Apply status filter
-        const statusFiltered = filterStatus ? planItems.filter(pi => {
+        // Apply status filter (on top of cat/sub pre-filter)
+        const statusFiltered = filterStatus ? catSubFiltered.filter(pi => {
           if (filterStatus === "to_pick") return pi.status === "to_pick";
           if (filterStatus === "picked") return pi.status === "picked";
           if (filterStatus === "packed") return pi.status === "packed" && !pi.loaded;
           if (filterStatus === "loaded") return pi.status === "packed" && pi.loaded;
           return true;
-        }) : planItems;
+        }) : catSubFiltered;
 
         // Apply text search on top
         const q = search.trim().toLowerCase();

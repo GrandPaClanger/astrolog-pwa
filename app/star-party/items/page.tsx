@@ -53,6 +53,7 @@ export default function StarPartyItemsPage() {
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
+  const [currentEventId, setCurrentEventId] = useState<number | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -90,7 +91,12 @@ export default function StarPartyItemsPage() {
 
   async function load() {
     setLoading(true);
-    await Promise.all([loadLookups(), loadItems()]);
+    const [, , evRes] = await Promise.all([
+      loadLookups(),
+      loadItems(),
+      supabase.from("star_party_event").select("event_id").eq("is_current", true).maybeSingle(),
+    ]);
+    setCurrentEventId((evRes.data as { event_id: number } | null)?.event_id ?? null);
     setLoading(false);
   }
 
@@ -310,8 +316,11 @@ export default function StarPartyItemsPage() {
 
   return (
     <main style={{ padding: "16px", maxWidth: 600, margin: "0 auto", paddingBottom: 40 }}>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <Link href="/star-party" style={{ fontSize: 13, opacity: 0.6, textDecoration: "none" }}>← Star Parties</Link>
+        {currentEventId && (
+          <Link href={`/star-party/events/${currentEventId}`} style={{ fontSize: 13, opacity: 0.6, textDecoration: "none" }}>← Required Items</Link>
+        )}
       </div>
 
       <h1 style={{ marginBottom: 6 }}>Checklist Items</h1>
