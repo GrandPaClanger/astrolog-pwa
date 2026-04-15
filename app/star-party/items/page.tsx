@@ -63,6 +63,7 @@ export default function StarPartyItemsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<number | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const scrollTargetIdRef = useRef<number | null>(null);
 
@@ -233,18 +234,26 @@ export default function StarPartyItemsPage() {
 
     let savedItemId: number | null = editingId;
     if (editingId !== null) {
+      // Editing existing item — close form, scroll to it
       const { error: err } = await supabase.from("star_party_item").update(payload).eq("item_id", editingId);
       if (err) { setError(err.message); setSaving(false); return; }
+      closeForm();
+      await load();
+      setSaving(false);
+      setSavedId(savedItemId);
+      setTimeout(() => setSavedId(null), 2500);
     } else {
+      // Adding new item — keep form open, reset name only, flash ✓ Saved
       const { data: inserted, error: err } = await supabase.from("star_party_item").insert(payload).select("item_id").single();
       if (err) { setError(err.message); setSaving(false); return; }
       savedItemId = inserted?.item_id ?? null;
+      await load();
+      setSaving(false);
+      setName("");
+      setError(null);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2000);
     }
-    closeForm();
-    await load();
-    setSaving(false);
-    setSavedId(savedItemId);
-    setTimeout(() => setSavedId(null), 2500);
   }
 
   async function onDelete(item: Item) {
@@ -340,13 +349,16 @@ export default function StarPartyItemsPage() {
 
           {error && <p style={{ color: "#f87171", fontSize: 14, margin: "8px 0" }}>{error}</p>}
 
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
             <button onClick={onSave} disabled={saving} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: "#3b82f6", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
               {saving ? "Saving…" : "Save"}
             </button>
             <button onClick={closeForm} disabled={saving} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "white", fontSize: 14, cursor: "pointer" }}>
-              Cancel
+              {editingId === null ? "Done" : "Cancel"}
             </button>
+            {savedFlash && (
+              <span style={{ fontSize: 13, color: "#86efac", fontWeight: 600 }}>✓ Saved</span>
+            )}
           </div>
         </div>
       )}
