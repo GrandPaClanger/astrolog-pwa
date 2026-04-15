@@ -378,7 +378,15 @@ export default function RequiredItemsPage() {
             <p style={{ opacity: 0.55, textAlign: "center", padding: "24px 0" }}>No items match.</p>
           );
           return (
-            <div>{flatItems.slice().sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name)).map(renderRow)}</div>
+            <div>{flatItems.slice().sort((a, b) => {
+              const ai = catOrder.indexOf(a.star_party_item.category);
+              const bi = catOrder.indexOf(b.star_party_item.category);
+              if (ai !== bi) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+              const sa = a.star_party_item.sub_category ?? "";
+              const sb = b.star_party_item.sub_category ?? "";
+              if (sa !== sb) return sa.localeCompare(sb);
+              return a.star_party_item.name.localeCompare(b.star_party_item.name);
+            }).map(renderRow)}</div>
           );
         }
 
