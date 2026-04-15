@@ -64,6 +64,8 @@ export default function StarPartyItemsPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<number | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [filterCat, setFilterCat] = useState("");
+  const [filterSub, setFilterSub] = useState("");
   const formRef = useRef<HTMLDivElement>(null);
   const scrollTargetIdRef = useRef<number | null>(null);
 
@@ -278,6 +280,32 @@ export default function StarPartyItemsPage() {
               catOrder.indexOf(categories.find(c => c.label === b)?.slug ?? "")
   );
 
+  // Filter sub-categories available for the selected filter category
+  const filterSubOptions = filterCat
+    ? subCategories.filter(s => s.category_slug === filterCat)
+    : subCategories;
+
+  // Apply filters to the grouped display
+  const displayedItems = items.filter(item => {
+    if (filterCat && item.category !== filterCat) return false;
+    if (filterSub && (item.sub_category ?? "") !== filterSub) return false;
+    return true;
+  });
+
+  // Re-group filtered items
+  const filteredGrouped: Record<string, Record<string, Item[]>> = {};
+  for (const item of displayedItems) {
+    const cat = categories.find(c => c.slug === item.category)?.label ?? item.category;
+    const sub = item.sub_category ?? "(No sub-category)";
+    if (!filteredGrouped[cat]) filteredGrouped[cat] = {};
+    if (!filteredGrouped[cat][sub]) filteredGrouped[cat][sub] = [];
+    filteredGrouped[cat][sub].push(item);
+  }
+  const filteredSortedCats = Object.keys(filteredGrouped).sort(
+    (a, b) => catOrder.indexOf(categories.find(c => c.label === a)?.slug ?? "") -
+              catOrder.indexOf(categories.find(c => c.label === b)?.slug ?? "")
+  );
+
   const showNewInput = subCatSelect === NEW_SUB;
 
   return (
@@ -289,13 +317,44 @@ export default function StarPartyItemsPage() {
       <h1 style={{ marginBottom: 6 }}>Checklist Items</h1>
       <p style={{ opacity: 0.5, fontSize: 13, marginBottom: 20 }}>Manage the master list of items for your checklists</p>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <button
           onClick={openNew}
           style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: "#3b82f6", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
         >
           + Add Item
         </button>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 24 }}>
+        <div>
+          <label style={{ ...lStyle, marginBottom: 4 }}>Category</label>
+          <select
+            value={filterCat}
+            onChange={e => { setFilterCat(e.target.value); setFilterSub(""); }}
+            style={{ ...iStyle, fontSize: 14, padding: "8px 10px" }}
+          >
+            <option value="">All categories</option>
+            {categories.map(c => (
+              <option key={c.slug} value={c.slug}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label style={{ ...lStyle, marginBottom: 4 }}>Sub-Category</label>
+          <select
+            value={filterSub}
+            onChange={e => setFilterSub(e.target.value)}
+            disabled={filterSubOptions.length === 0}
+            style={{ ...iStyle, fontSize: 14, padding: "8px 10px", opacity: filterSubOptions.length === 0 ? 0.4 : 1 }}
+          >
+            <option value="">All sub-categories</option>
+            {filterSubOptions.map(s => (
+              <option key={s.sub_category_id} value={s.name}>{s.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {showForm && (
@@ -376,13 +435,15 @@ export default function StarPartyItemsPage() {
             {initializing ? "Loading defaults…" : "Load Default Items from Spreadsheet"}
           </button>
         </div>
+      ) : filteredSortedCats.length === 0 ? (
+        <p style={{ opacity: 0.5, textAlign: "center", padding: "24px 0" }}>No items match the selected filters.</p>
       ) : (
-        sortedCats.map(cat => (
+        filteredSortedCats.map(cat => (
           <div key={cat} style={{ marginBottom: 28 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 12, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
               {cat}
             </div>
-            {Object.entries(grouped[cat]).sort(([a], [b]) => a.localeCompare(b)).map(([sub, subItems]) => (
+            {Object.entries(filteredGrouped[cat]).sort(([a], [b]) => a.localeCompare(b)).map(([sub, subItems]) => (
               <div key={sub} style={{ marginBottom: 16 }}>
                 {sub !== "(No sub-category)" && (
                   <div style={{ fontSize: 11, opacity: 0.5, fontWeight: 600, letterSpacing: "0.08em", marginBottom: 6, paddingLeft: 4 }}>
