@@ -332,19 +332,19 @@ export default function RequiredItemsPage() {
         const q = search.trim().toLowerCase();
         const flatItems = q ? statusFiltered.filter(p => p.star_party_item.name.toLowerCase().includes(q)) : statusFiltered;
 
-        // Helper: render a single item row (flat view)
-        const renderRow = (pi: PlanItem) => (
+        // Helper: render a single item row
+        const renderRow = (pi: PlanItem, indented = false) => (
           <div
             key={pi.plan_item_id}
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "11px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: `11px 4px 11px ${indented ? 16 : 4}px`, borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
           >
             <div>
               <div style={{ fontSize: 15 }}>{pi.star_party_item.name}</div>
-              <div style={{ fontSize: 11, opacity: 0.45, marginTop: 2 }}>
-                {categories.find(c => c.slug === pi.star_party_item.category)?.label ?? pi.star_party_item.category}
-                {pi.star_party_item.sub_category && ` · ${pi.star_party_item.sub_category}`}
-                {pi.status === "packed" && ` · ${pi.star_party_container ? pi.star_party_container.name : "Loose"}`}
-              </div>
+              {pi.status === "packed" && (
+                <div style={{ fontSize: 11, opacity: 0.45, marginTop: 2 }}>
+                  {pi.star_party_container ? pi.star_party_container.name : "Loose"}
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
               {pi.status === "to_pick" && (
@@ -372,21 +372,54 @@ export default function RequiredItemsPage() {
           </div>
         );
 
-        // Flat view: search or filter active
+        // Filtered view: search or any filter active — grouped with category/sub headers
         if (search.trim() || filterStatus) {
           if (flatItems.length === 0) return (
             <p style={{ opacity: 0.55, textAlign: "center", padding: "24px 0" }}>No items match.</p>
           );
+          // Group filtered items by category → sub-category
+          const fg: Record<string, Record<string, PlanItem[]>> = {};
+          for (const pi of flatItems) {
+            const cat = pi.star_party_item.category;
+            const sub = pi.star_party_item.sub_category ?? "(No sub-category)";
+            if (!fg[cat]) fg[cat] = {};
+            if (!fg[cat][sub]) fg[cat][sub] = [];
+            fg[cat][sub].push(pi);
+          }
+          for (const cat of Object.keys(fg))
+            for (const sub of Object.keys(fg[cat]))
+              fg[cat][sub].sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name));
+          const fgSlugs = Object.keys(fg).sort((a, b) => {
+            const ai = catOrder.indexOf(a); const bi = catOrder.indexOf(b);
+            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+          });
           return (
-            <div>{flatItems.slice().sort((a, b) => {
-              const ai = catOrder.indexOf(a.star_party_item.category);
-              const bi = catOrder.indexOf(b.star_party_item.category);
-              if (ai !== bi) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-              const sa = a.star_party_item.sub_category ?? "";
-              const sb = b.star_party_item.sub_category ?? "";
-              if (sa !== sb) return sa.localeCompare(sb);
-              return a.star_party_item.name.localeCompare(b.star_party_item.name);
-            }).map(renderRow)}</div>
+            <>
+              {fgSlugs.map(slug => {
+                const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
+                const subs = fg[slug];
+                const sortedSubs = Object.keys(subs).sort((a, b) =>
+                  a === "(No sub-category)" ? -1 : b === "(No sub-category)" ? 1 : a.localeCompare(b)
+                );
+                return (
+                  <div key={slug} style={{ marginBottom: 28 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                      {catLabel}
+                    </div>
+                    {sortedSubs.map(sub => (
+                      <div key={sub} style={{ marginBottom: 12 }}>
+                        {sub !== "(No sub-category)" && (
+                          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "6px 4px 4px", textTransform: "uppercase" }}>
+                            {sub}
+                          </div>
+                        )}
+                        {subs[sub].map(pi => renderRow(pi, sub !== "(No sub-category)"))}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </>
           );
         }
 
@@ -411,40 +444,7 @@ export default function RequiredItemsPage() {
                           {sub}
                         </div>
                       )}
-                      {subs[sub].map(pi => (
-                        <div
-                          key={pi.plan_item_id}
-                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: `11px 4px 11px ${sub !== "(No sub-category)" ? 16 : 4}px`, borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 48 }}
-                        >
-                          <div>
-                            <div style={{ fontSize: 15 }}>{pi.star_party_item.name}</div>
-                            {pi.status === "packed" && (
-                              <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>
-                                {pi.star_party_container ? pi.star_party_container.name : "Loose"}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                            {pi.status === "to_pick" && (
-                              <button onClick={() => removeItem(pi)} disabled={removing.has(pi.plan_item_id)} title="Remove from plan"
-                                style={{ background: "none", border: "none", color: "#f87171", fontSize: 16, cursor: "pointer", padding: "2px 4px", opacity: removing.has(pi.plan_item_id) ? 0.4 : 0.6, lineHeight: 1 }}>✕</button>
-                            )}
-                            {pi.status === "to_pick" ? (
-                              <span style={{ ...STATUS_COLOR["to_pick"], padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>To Pick</span>
-                            ) : pi.status === "packed" && pi.loaded ? (
-                              <button onClick={() => undoLoaded(pi)} disabled={updating.has(pi.plan_item_id)} title="Un-load"
-                                style={{ ...STATUS_COLOR["loaded"], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}>
-                                Loaded <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
-                              </button>
-                            ) : (
-                              <button onClick={() => undoStatus(pi)} disabled={updating.has(pi.plan_item_id)} title={UNDO_LABEL[pi.status]}
-                                style={{ ...STATUS_COLOR[pi.status], padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, opacity: updating.has(pi.plan_item_id) ? 0.5 : 1 }}>
-                                {STATUS_LABEL[pi.status]} <span style={{ fontSize: 13, opacity: 0.7 }}>↩</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                      {subs[sub].map(pi => renderRow(pi, sub !== "(No sub-category)"))}
                     </div>
                   ))}
                 </div>
