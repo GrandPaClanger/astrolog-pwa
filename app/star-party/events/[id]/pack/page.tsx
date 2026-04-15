@@ -28,6 +28,7 @@ type Container = {
 };
 
 type ContainerType = { container_type_id: number; name: string };
+type Category = { slug: string; label: string };
 type EventMeta = { name: string };
 
 const tabStyle = (active: boolean): React.CSSProperties => ({
@@ -53,6 +54,7 @@ export default function ToPackPage() {
   const id = params.id as string;
 
   const [event, setEvent] = useState<EventMeta | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [pickedItems, setPickedItems] = useState<PickedItem[]>([]);
   const [packedItems, setPackedItems] = useState<PackedItem[]>([]);
   const [containers, setContainers] = useState<Container[]>([]);
@@ -91,7 +93,7 @@ export default function ToPackPage() {
 
   async function load() {
     setLoading(true);
-    const [evRes, pickedRes, typesRes] = await Promise.all([
+    const [evRes, pickedRes, typesRes, catRes] = await Promise.all([
       supabase.from("star_party_event").select("name").eq("event_id", id).single(),
       supabase
         .from("star_party_plan_item")
@@ -102,9 +104,11 @@ export default function ToPackPage() {
         .from("star_party_container_type")
         .select("container_type_id, name")
         .order("sort_order"),
+      supabase.from("star_party_category").select("slug, label").order("sort_order"),
     ]);
     const types = (typesRes.data as ContainerType[]) ?? [];
     setEvent(evRes.data as EventMeta ?? null);
+    setCategories((catRes.data as Category[]) ?? []);
     setPickedItems((pickedRes.data as unknown as PickedItem[]) ?? []);
     setContainerTypes(types);
     await loadPacked();
@@ -238,79 +242,100 @@ export default function ToPackPage() {
         ) : (
           <>
             <p style={{ fontSize: 13, opacity: 0.55, marginBottom: 12 }}>Tap an item to choose a container.</p>
-            {pickedItems.map(pi => {
-              const isExpanded = expandedId === pi.plan_item_id;
-              const isBusy = packing.has(pi.plan_item_id);
-              return (
-                <div key={pi.plan_item_id}>
-                  <div
-                    onClick={() => !isBusy && setExpandedId(isExpanded ? null : pi.plan_item_id)}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "13px 4px", borderBottom: isExpanded ? "none" : "1px solid rgba(255,255,255,0.07)",
-                      cursor: isBusy ? "default" : "pointer", minHeight: 52,
-                      userSelect: "none", WebkitTapHighlightColor: "transparent",
-                      opacity: isBusy ? 0.5 : 1,
-                    }}
-                  >
-                    <span style={{ fontSize: 15, flex: 1 }}>{pi.star_party_item.name}</span>
-                    <button
-                      onClick={e => { e.stopPropagation(); resetToPick(pi.plan_item_id); }}
-                      title="Return to pick list"
-                      style={{ background: "none", border: "none", color: "#f87171", fontSize: 18, cursor: "pointer", padding: "4px 6px", opacity: 0.75, flexShrink: 0 }}
-                    >↩</button>
-                    <span style={{ fontSize: 18, opacity: 0.5, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
-                  </div>
+            {(() => {
+              // Group picked items by category → sub-category
+              const catOrder = categories.map(c => c.slug);
+              const pg: Record<string, Record<string, PickedItem[]>> = {};
+              for (const pi of pickedItems) {
+                const cat = pi.star_party_item.category;
+                const sub = pi.star_party_item.sub_category ?? "(No sub-category)";
+                if (!pg[cat]) pg[cat] = {};
+                if (!pg[cat][sub]) pg[cat][sub] = [];
+                pg[cat][sub].push(pi);
+              }
+              for (const cat of Object.keys(pg))
+                for (const sub of Object.keys(pg[cat]))
+                  pg[cat][sub].sort((a, b) => a.star_party_item.name.localeCompare(b.star_party_item.name));
+              const pgSlugs = Object.keys(pg).sort((a, b) => {
+                const ai = catOrder.indexOf(a); const bi = catOrder.indexOf(b);
+                return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+              });
 
-                  {isExpanded && (
-                    <div style={{ padding: "10px 4px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", overflowX: "auto" }}>
-                      <div style={{ display: "flex", gap: 8, paddingBottom: 4, minWidth: "max-content" }}>
-                        {/* Loose — pack without a container */}
-                        <button
-                          onClick={() => packItem(pi.plan_item_id, null)}
-                          style={{
-                            padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
-                            border: "1px solid rgba(251,191,36,0.5)", background: "rgba(251,191,36,0.1)",
-                            color: "#fbbf24", cursor: "pointer", whiteSpace: "nowrap",
-                          }}
-                        >
-                          Loose
-                        </button>
-                        {/* All containers */}
-                        {containers.map(c => (
-                          <button
-                            key={c.container_id}
-                            onClick={() => handleChipTap(pi.plan_item_id, { containerId: c.container_id })}
-                            style={{
-                              padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
-                              border: "1px solid rgba(99,179,237,0.5)",
-                              background: "rgba(59,130,246,0.15)",
-                              color: "#93c5fd", cursor: "pointer", whiteSpace: "nowrap",
-                            }}
-                          >
-                            {c.name}
-                          </button>
-                        ))}
-                        {/* New container buttons per type */}
-                        {containerTypes.map(ct => (
-                          <button
-                            key={ct.container_type_id}
-                            onClick={() => handleChipTap(pi.plan_item_id, { typeId: ct.container_type_id, typeName: ct.name })}
-                            style={{
-                              padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
-                              border: "1px dashed rgba(134,239,172,0.5)", background: "rgba(34,197,94,0.1)",
-                              color: "#86efac", cursor: "pointer", whiteSpace: "nowrap",
-                            }}
-                          >
-                            + New {ct.name}
-                          </button>
-                        ))}
-                      </div>
+              const renderPickedRow = (pi: PickedItem, indented: boolean) => {
+                const isExpanded = expandedId === pi.plan_item_id;
+                const isBusy = packing.has(pi.plan_item_id);
+                return (
+                  <div key={pi.plan_item_id}>
+                    <div
+                      onClick={() => !isBusy && setExpandedId(isExpanded ? null : pi.plan_item_id)}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: `13px 4px 13px ${indented ? 16 : 4}px`,
+                        borderBottom: isExpanded ? "none" : "1px solid rgba(255,255,255,0.07)",
+                        cursor: isBusy ? "default" : "pointer", minHeight: 52,
+                        userSelect: "none", WebkitTapHighlightColor: "transparent",
+                        opacity: isBusy ? 0.5 : 1,
+                      }}
+                    >
+                      <span style={{ fontSize: 15, flex: 1 }}>{pi.star_party_item.name}</span>
+                      <button
+                        onClick={e => { e.stopPropagation(); resetToPick(pi.plan_item_id); }}
+                        title="Return to pick list"
+                        style={{ background: "none", border: "none", color: "#f87171", fontSize: 18, cursor: "pointer", padding: "4px 6px", opacity: 0.75, flexShrink: 0 }}
+                      >↩</button>
+                      <span style={{ fontSize: 18, opacity: 0.5, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>›</span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                    {isExpanded && (
+                      <div style={{ padding: "10px 4px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", overflowX: "auto" }}>
+                        <div style={{ display: "flex", gap: 8, paddingBottom: 4, minWidth: "max-content" }}>
+                          <button onClick={() => packItem(pi.plan_item_id, null)}
+                            style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px solid rgba(251,191,36,0.5)", background: "rgba(251,191,36,0.1)", color: "#fbbf24", cursor: "pointer", whiteSpace: "nowrap" }}>
+                            Loose
+                          </button>
+                          {containers.map(c => (
+                            <button key={c.container_id} onClick={() => handleChipTap(pi.plan_item_id, { containerId: c.container_id })}
+                              style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px solid rgba(99,179,237,0.5)", background: "rgba(59,130,246,0.15)", color: "#93c5fd", cursor: "pointer", whiteSpace: "nowrap" }}>
+                              {c.name}
+                            </button>
+                          ))}
+                          {containerTypes.map(ct => (
+                            <button key={ct.container_type_id} onClick={() => handleChipTap(pi.plan_item_id, { typeId: ct.container_type_id, typeName: ct.name })}
+                              style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "1px dashed rgba(134,239,172,0.5)", background: "rgba(34,197,94,0.1)", color: "#86efac", cursor: "pointer", whiteSpace: "nowrap" }}>
+                              + New {ct.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              };
+
+              return pgSlugs.map(slug => {
+                const catLabel = categories.find(c => c.slug === slug)?.label ?? slug;
+                const subs = pg[slug];
+                const sortedSubs = Object.keys(subs).sort((a, b) =>
+                  a === "(No sub-category)" ? -1 : b === "(No sub-category)" ? 1 : a.localeCompare(b)
+                );
+                return (
+                  <div key={slug} style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#93c5fd", letterSpacing: "0.06em", marginBottom: 6, paddingBottom: 4, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                      {catLabel}
+                    </div>
+                    {sortedSubs.map(sub => (
+                      <div key={sub}>
+                        {sub !== "(No sub-category)" && (
+                          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, letterSpacing: "0.08em", padding: "5px 4px 2px", textTransform: "uppercase" }}>
+                            {sub}
+                          </div>
+                        )}
+                        {subs[sub].map(pi => renderPickedRow(pi, sub !== "(No sub-category)"))}
+                      </div>
+                    ))}
+                  </div>
+                );
+              });
+            })()}
           </>
         )}
       </div>
