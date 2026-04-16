@@ -84,8 +84,7 @@ export default function ToLoadPage() {
 
   async function toggleContainer(c: ContainerWithItems) {
     const packedItems = c.star_party_plan_item.filter(p => p.status === "packed");
-    const itemIds = packedItems.map(p => p.plan_item_id);
-    if (itemIds.length === 0) return;
+    if (packedItems.length === 0) return;
     const allLoaded = packedItems.every(p => p.loaded);
     const newLoaded = !allLoaded;
     setLoadingContainer(prev => new Set(prev).add(c.container_id));
@@ -97,13 +96,14 @@ export default function ToLoadPage() {
         : con
     ));
 
+    // Filter by container_id to avoid long .in() URL on iOS Safari
     const { error } = await supabase
       .from("star_party_plan_item")
       .update({ loaded: newLoaded })
-      .in("plan_item_id", itemIds);
+      .eq("container_id", c.container_id)
+      .eq("status", "packed");
     if (error) {
       alert(error.message);
-      // Revert
       setContainers(prev => prev.map(con =>
         con.container_id === c.container_id
           ? { ...con, star_party_plan_item: c.star_party_plan_item }
@@ -113,11 +113,23 @@ export default function ToLoadPage() {
     setLoadingContainer(prev => { const n = new Set(prev); n.delete(c.container_id); return n; });
   }
 
-  async function resetToPick(planItemIds: number[]) {
+  // Reset a whole container's items back to to_pick (filter by container_id, not .in())
+  async function resetContainerToPick(containerId: number) {
     const { error } = await supabase
       .from("star_party_plan_item")
       .update({ status: "to_pick", container_id: null, loaded: false })
-      .in("plan_item_id", planItemIds);
+      .eq("container_id", containerId)
+      .eq("status", "packed");
+    if (error) { alert(error.message); return; }
+    await load();
+  }
+
+  // Reset a single loose item back to to_pick
+  async function resetLooseToPick(planItemId: number) {
+    const { error } = await supabase
+      .from("star_party_plan_item")
+      .update({ status: "to_pick", container_id: null, loaded: false })
+      .eq("plan_item_id", planItemId);
     if (error) { alert(error.message); return; }
     await load();
   }
@@ -285,7 +297,7 @@ if (loading) return <main style={{ padding: 16 }}><p style={{ opacity: 0.6 }}>Lo
                           ))}
                         <div style={{ padding: "8px 14px" }}>
                           <button
-                            onClick={() => resetToPick(packedPlanItems.map(p => p.plan_item_id))}
+                            onClick={() => resetContainerToPick(c.container_id)}
                             disabled={isBusy}
                             style={{
                               padding: "6px 0", fontSize: 12,
@@ -364,7 +376,7 @@ if (loading) return <main style={{ padding: 16 }}><p style={{ opacity: 0.6 }}>Lo
                                 </span>
                               </div>
                               <button
-                                onClick={() => !isBusy && resetToPick([li.plan_item_id])}
+                                onClick={() => !isBusy && resetLooseToPick(li.plan_item_id)}
                                 disabled={isBusy}
                                 title="Return to pick list"
                                 style={{ background: "none", border: "none", color: "#f87171", fontSize: 18, cursor: "pointer", padding: "2px 4px", flexShrink: 0, opacity: 0.75 }}
