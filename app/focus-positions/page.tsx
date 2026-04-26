@@ -6,10 +6,14 @@ import { supabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
+type ReadingType = "calliper" | "scale";
+
 type FocusPositionRow = {
   focus_position_id: number;
   telescope_description: string;
   position: number;
+  reading_type: ReadingType | null;
+  measurement_value: number | null;
 };
 
 const iStyle: React.CSSProperties = {
@@ -32,23 +36,30 @@ const lStyle: React.CSSProperties = {
   letterSpacing: "0.05em",
 };
 
+const READING_TYPES: { value: ReadingType; label: string; hint: string }[] = [
+  { value: "calliper", label: "Calliper", hint: "mm" },
+  { value: "scale",    label: "Scale",    hint: "scale reading" },
+];
+
 export default function FocusPositionsPage() {
   const [rows,    setRows]    = useState<FocusPositionRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form state
-  const [showForm,  setShowForm]  = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [desc,      setDesc]      = useState("");
-  const [position,  setPosition]  = useState<number | "">("");
-  const [saving,    setSaving]    = useState(false);
-  const [error,     setError]     = useState<string | null>(null);
+  const [showForm,      setShowForm]      = useState(false);
+  const [editingId,     setEditingId]     = useState<number | null>(null);
+  const [desc,          setDesc]          = useState("");
+  const [position,      setPosition]      = useState<number | "">("");
+  const [readingType,   setReadingType]   = useState<ReadingType | "">("");
+  const [measureValue,  setMeasureValue]  = useState<number | "">("");
+  const [saving,        setSaving]        = useState(false);
+  const [error,         setError]         = useState<string | null>(null);
 
   async function loadRows() {
     setLoading(true);
     const { data } = await supabase
       .from("focus_position")
-      .select("focus_position_id, telescope_description, position")
+      .select("focus_position_id, telescope_description, position, reading_type, measurement_value")
       .order("telescope_description")
       .order("position");
     setRows((data as FocusPositionRow[]) ?? []);
@@ -61,6 +72,8 @@ export default function FocusPositionsPage() {
     setEditingId(null);
     setDesc("");
     setPosition("");
+    setReadingType("");
+    setMeasureValue("");
     setError(null);
     setShowForm(true);
   }
@@ -69,6 +82,8 @@ export default function FocusPositionsPage() {
     setEditingId(row.focus_position_id);
     setDesc(row.telescope_description);
     setPosition(row.position);
+    setReadingType(row.reading_type ?? "");
+    setMeasureValue(row.measurement_value ?? "");
     setError(null);
     setShowForm(true);
   }
@@ -80,12 +95,15 @@ export default function FocusPositionsPage() {
   }
 
   function validate(): string | null {
-    if (!desc.trim())                              return "Telescope description is required.";
-    if (desc.trim().length > 50)                   return "Telescope description must be 50 characters or fewer.";
-    if (position === "")                           return "Focus position is required.";
-    if (!Number.isInteger(Number(position)))       return "Focus position must be a whole number.";
-    if (Number(position) < 0)                      return "Focus position must be 0 or greater.";
-    if (Number(position) > 99999)                  return "Focus position must be 99999 or less.";
+    if (!desc.trim())                        return "Telescope description is required.";
+    if (desc.trim().length > 50)             return "Telescope description must be 50 characters or fewer.";
+    if (position === "")                     return "Focus position is required.";
+    if (!Number.isInteger(Number(position))) return "Focus position must be a whole number.";
+    if (Number(position) < 0)                return "Focus position must be 0 or greater.";
+    if (Number(position) > 99999)            return "Focus position must be 99999 or less.";
+    if (measureValue !== "" && isNaN(Number(measureValue))) return "Measurement value must be a number.";
+    if (measureValue !== "" && Number(measureValue) < 0)    return "Measurement value must be 0 or greater.";
+    if (measureValue !== "" && !readingType)  return "Please select a reading type (Calliper or Scale).";
     return null;
   }
 
@@ -99,6 +117,8 @@ export default function FocusPositionsPage() {
     const payload = {
       telescope_description: desc.trim(),
       position: Number(position),
+      reading_type: readingType || null,
+      measurement_value: measureValue !== "" ? Number(measureValue) : null,
     };
 
     if (editingId !== null) {
@@ -129,9 +149,14 @@ export default function FocusPositionsPage() {
     await loadRows();
   }
 
+  function formatMeasurement(row: FocusPositionRow): string {
+    if (row.measurement_value === null) return "—";
+    const unit = row.reading_type === "calliper" ? " mm" : "";
+    return `${row.measurement_value}${unit}`;
+  }
+
   return (
     <main style={{ padding: "16px", maxWidth: 640, margin: "0 auto" }}>
-      {/* Back link */}
       <div style={{ marginBottom: 16 }}>
         <Link href="/" style={{ fontSize: 13, opacity: 0.6, textDecoration: "none" }}>
           ← Home
@@ -185,6 +210,58 @@ export default function FocusPositionsPage() {
             />
           </div>
 
+          {/* Reading type toggle */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={lStyle}>Reading Type</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              {READING_TYPES.map(rt => (
+                <button
+                  key={rt.value}
+                  type="button"
+                  onClick={() => setReadingType(readingType === rt.value ? "" : rt.value)}
+                  style={{
+                    flex: 1,
+                    padding: "9px 0",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: readingType === rt.value
+                      ? "1px solid rgba(59,130,246,0.7)"
+                      : "1px solid rgba(255,255,255,0.2)",
+                    background: readingType === rt.value
+                      ? "rgba(59,130,246,0.2)"
+                      : "rgba(0,0,0,0.3)",
+                    color: readingType === rt.value ? "#93c5fd" : "rgba(255,255,255,0.7)",
+                  }}
+                >
+                  {rt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Measurement value — shown once a type is selected */}
+          {readingType && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={lStyle}>
+                Measurement Value
+                <span style={{ marginLeft: 6, opacity: 0.5, fontStyle: "italic", textTransform: "none", letterSpacing: 0 }}>
+                  ({readingType === "calliper" ? "mm" : "scale reading"})
+                </span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={readingType === "calliper" ? 0.01 : 1}
+                style={iStyle}
+                value={measureValue}
+                onChange={e => setMeasureValue(e.target.value === "" ? "" : Number(e.target.value))}
+                placeholder={readingType === "calliper" ? "e.g. 42.5" : "e.g. 47"}
+              />
+            </div>
+          )}
+
           {error && (
             <p style={{ color: "#f87171", margin: "10px 0 0", fontSize: 14 }}>{error}</p>
           )}
@@ -210,7 +287,7 @@ export default function FocusPositionsPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr>
-                {["Telescope Description", "Position", ""].map(h => (
+                {["Telescope", "Position", "Reading", "Value", ""].map(h => (
                   <th key={h} style={{
                     textAlign: "left",
                     padding: "5px 8px",
@@ -234,6 +311,20 @@ export default function FocusPositionsPage() {
                   </td>
                   <td style={{ padding: "7px 8px", borderBottom: "1px solid #1e1e1e" }}>
                     {r.position}
+                  </td>
+                  <td style={{ padding: "7px 8px", borderBottom: "1px solid #1e1e1e" }}>
+                    {r.reading_type ? (
+                      <span style={{
+                        padding: "2px 7px", borderRadius: 5, fontSize: 11, fontWeight: 600,
+                        background: r.reading_type === "calliper" ? "rgba(139,92,246,0.2)" : "rgba(34,197,94,0.2)",
+                        color: r.reading_type === "calliper" ? "#c4b5fd" : "#86efac",
+                      }}>
+                        {r.reading_type === "calliper" ? "Calliper" : "Scale"}
+                      </span>
+                    ) : <span style={{ opacity: 0.3 }}>—</span>}
+                  </td>
+                  <td style={{ padding: "7px 8px", borderBottom: "1px solid #1e1e1e" }}>
+                    {formatMeasurement(r)}
                   </td>
                   <td style={{ padding: "7px 8px", borderBottom: "1px solid #1e1e1e" }}>
                     <div style={{ display: "flex", gap: 6 }}>
