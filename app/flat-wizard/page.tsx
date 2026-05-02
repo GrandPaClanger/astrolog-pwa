@@ -78,6 +78,7 @@ export default function FlatWizardPage() {
   const [lines,      setLines]      = useState<FilterLine[]>([newLine()]);
   const [saving,     setSaving]     = useState(false);
   const [error,      setError]      = useState<string | null>(null);
+  const [copyKey,    setCopyKey]    = useState<string>("");
 
   // ── Load lookups ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -120,8 +121,28 @@ export default function FlatWizardPage() {
     setCamera("");
     setMode("dynamic_brightness");
     setLines([newLine()]);
+    setCopyKey("");
     setError(null);
     setShowForm(true);
+  }
+
+  // ── Copy from an existing group into the form ──────────────────────────────
+  function applyGroupCopy(key: string) {
+    setCopyKey(key);
+    if (!key) return;
+    const group = grouped.find(g => `${g.telescopeName}_${g.cameraName}_${g.mode}` === key);
+    if (!group) return;
+    setTelescope(group.rows[0].telescope_id);
+    setCamera(group.rows[0].camera_id);
+    setMode(group.rows[0].mode);
+    setLines(group.rows.map(r => ({
+      key: ++lineKey,
+      filter_id:    r.filter_id,
+      min_exposure: r.min_exposure,
+      max_exposure: r.max_exposure,
+      brightness:   r.brightness,
+    })));
+    setError(null);
   }
 
   // ── Open edit form (single row) ────────────────────────────────────────────
@@ -281,6 +302,41 @@ export default function FlatWizardPage() {
           <h2 style={{ marginTop: 0, marginBottom: 18, fontSize: 15 }}>
             {editingId === null ? "New Combination" : "Edit Filter Row"}
           </h2>
+
+          {/* Copy from existing — only when creating new */}
+          {editingId === null && grouped.length > 0 && (
+            <div style={{
+              marginBottom: 20,
+              padding: "12px 14px",
+              borderRadius: 8,
+              background: "rgba(59,130,246,0.08)",
+              border: "1px solid rgba(59,130,246,0.2)",
+            }}>
+              <label style={{ ...lStyle, color: "#93c5fd", opacity: 1, marginBottom: 8 }}>
+                Copy from existing combination
+              </label>
+              <select
+                style={{ ...iStyle, borderColor: "rgba(59,130,246,0.3)" }}
+                value={copyKey}
+                onChange={e => applyGroupCopy(e.target.value)}
+              >
+                <option value="">— select to copy —</option>
+                {grouped.map(g => {
+                  const key = `${g.telescopeName}_${g.cameraName}_${g.mode}`;
+                  return (
+                    <option key={key} value={key}>
+                      {g.telescopeName} · {g.cameraName} · {MODE_LABELS[g.mode]}
+                    </option>
+                  );
+                })}
+              </select>
+              {copyKey && (
+                <p style={{ fontSize: 12, opacity: 0.55, margin: "8px 0 0" }}>
+                  Fields pre-filled — adjust as needed then save.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Telescope */}
           <div style={{ marginBottom: 12 }}>
