@@ -231,6 +231,7 @@ export default function NewSessionPage() {
   const [lines, setLines] = useState<FilterLine[]>([
     { filter_id: null, exposures: 0, exposure_sec: 0, gain: null, camera_offset: null, bin: null, notes: null },
   ]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -297,10 +298,24 @@ export default function NewSessionPage() {
     setLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
   }
 
+  async function findTargetByCatalogNo(catalogNo: string): Promise<number | null> {
+    const { data, error } = await supabase
+      .from("target")
+      .select("target_id")
+      .eq("catalog_no_norm", catalogNo.trim().toLowerCase())
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    return data ? ((data as any).target_id as number) : null;
+  }
+
   async function ensureTargetId(): Promise<number> {
     const cat = newCatalogNo.trim();
 
     if (!existingSessionId && cat) {
+      const existingTargetId = await findTargetByCatalogNo(cat);
+      if (existingTargetId) return existingTargetId;
+
       const ins = await supabase
         .from("target")
         .insert({
@@ -310,7 +325,15 @@ export default function NewSessionPage() {
         .select("target_id")
         .single();
 
-      if (ins.error) throw new Error(ins.error.message);
+      if (ins.error) {
+        if ((ins.error as any).code === "23505") {
+          const targetIdAfterRace = await findTargetByCatalogNo(cat);
+          if (targetIdAfterRace) return targetIdAfterRace;
+        }
+
+        throw new Error(ins.error.message);
+      }
+
       return (ins.data as any).target_id as number;
     }
 
@@ -319,10 +342,14 @@ export default function NewSessionPage() {
   }
 
   async function save() {
+    if (saving) return;
+
     try {
       for (const l of lines) {
         if (!l.filter_id) return alert("Each filter line needs a filter selected.");
       }
+
+      setSaving(true);
 
       const finalTargetId = await ensureTargetId();
       setTargetId(finalTargetId);
@@ -383,6 +410,8 @@ export default function NewSessionPage() {
       router.refresh();
     } catch (e: any) {
       alert(e?.message ?? String(e));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -701,9 +730,9 @@ export default function NewSessionPage() {
       </div>
 
       <div className="flex flex-wrap gap-2 mt-4">
-        <button className="btn-secondary" onClick={addLineCopyPrev}>Add filter line (copy last)</button>
-        <button className="btn-primary" onClick={save}>Save</button>
-        <button className="btn-ghost" onClick={() => router.back()}>Cancel</button>
+        <button className="btn-secondary" onClick={addLineCopyPrev} disabled={saving}>Add filter line (copy last)</button>
+        <button className="btn-primary" onClick={save} disabled={saving}>{saving ? "Saving..." : "Save"}</button>
+        <button className="btn-ghost" onClick={() => router.back()} disabled={saving}>Cancel</button>
       </div>
     </div>
   );
