@@ -587,6 +587,26 @@ create table if not exists public.star_party_plan_item (
 create index if not exists ix_spp_event on public.star_party_plan_item(event_id);
 create index if not exists ix_spp_person on public.star_party_plan_item(person_id);
 
+create table if not exists public.star_party_planned_target (
+  planned_target_id bigserial primary key,
+  event_id          bigint not null references public.star_party_event(event_id) on delete cascade,
+  person_id         bigint not null references public.person(person_id) on delete cascade,
+  target_name       varchar(50) not null,
+  description       text,
+  telescope_id      bigint references public.telescope(telescope_id) on delete set null,
+  camera_id         smallint references public.camera(camera_id) on delete set null,
+  mount_id          smallint references public.mount(mount_id) on delete set null,
+  filter_text       varchar(250),
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+create index if not exists ix_sppt_event on public.star_party_planned_target(event_id);
+create index if not exists ix_sppt_person on public.star_party_planned_target(person_id);
+create index if not exists ix_sppt_telescope on public.star_party_planned_target(telescope_id);
+create index if not exists ix_sppt_camera on public.star_party_planned_target(camera_id);
+create index if not exists ix_sppt_mount on public.star_party_planned_target(mount_id);
+
 drop trigger if exists trg_sp_item_updated_at on public.star_party_item;
 create trigger trg_sp_item_updated_at
 before update on public.star_party_item
@@ -602,6 +622,11 @@ create trigger trg_spp_updated_at
 before update on public.star_party_plan_item
 for each row execute function public.set_updated_at();
 
+drop trigger if exists trg_sppt_updated_at on public.star_party_planned_target;
+create trigger trg_sppt_updated_at
+before update on public.star_party_planned_target
+for each row execute function public.set_updated_at();
+
 drop trigger if exists trg_sp_item_person on public.star_party_item;
 create trigger trg_sp_item_person
 before insert on public.star_party_item
@@ -615,6 +640,11 @@ for each row execute function public.set_person_id_from_auth();
 drop trigger if exists trg_spp_person on public.star_party_plan_item;
 create trigger trg_spp_person
 before insert on public.star_party_plan_item
+for each row execute function public.set_person_id_from_auth();
+
+drop trigger if exists trg_sppt_person on public.star_party_planned_target;
+create trigger trg_sppt_person
+before insert on public.star_party_planned_target
 for each row execute function public.set_person_id_from_auth();
 
 alter table public.star_party_item enable row level security;
@@ -637,3 +667,13 @@ create policy "spp_crud"
 on public.star_party_plan_item to authenticated
 using (person_id = public.current_person_id())
 with check (person_id = public.current_person_id());
+
+alter table public.star_party_planned_target enable row level security;
+drop policy if exists "sppt_crud" on public.star_party_planned_target;
+create policy "sppt_crud"
+on public.star_party_planned_target to authenticated
+using (person_id = public.current_person_id())
+with check (person_id = public.current_person_id());
+
+grant select, insert, update, delete on public.star_party_planned_target to authenticated;
+grant usage, select on sequence public.star_party_planned_target_planned_target_id_seq to authenticated;
