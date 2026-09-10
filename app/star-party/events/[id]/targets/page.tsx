@@ -64,6 +64,27 @@ function ratingLabel(value: number) {
   return Number.isInteger(value) ? `${value}` : `${Math.floor(value)}.5`;
 }
 
+function RatingDisplay({ value }: { value: number }) {
+  return (
+    <span title={`${ratingLabel(value)} out of 5`} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <span aria-hidden="true" style={{ display: "inline-flex", gap: 1 }}>
+        {[1, 2, 3, 4, 5].map(star => {
+          const fillPercent = Math.max(0, Math.min(1, value - star + 1)) * 100;
+          return (
+            <span key={star} style={{ position: "relative", display: "inline-block", width: 14, height: 14, color: "rgba(255,255,255,0.22)", lineHeight: "14px", fontSize: 14 }}>
+              ★
+              <span style={{ position: "absolute", left: 0, top: 0, width: `${fillPercent}%`, overflow: "hidden", color: "#fbbf24" }}>
+                ★
+              </span>
+            </span>
+          );
+        })}
+      </span>
+      <span style={{ color: "#dbeafe", fontSize: 12, fontWeight: 800 }}>{ratingLabel(value)}/5</span>
+    </span>
+  );
+}
+
 export default function PlannedTargetsPage() {
   const params = useParams();
   const id = params.id as string;
@@ -418,9 +439,7 @@ export default function PlannedTargetsPage() {
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <div style={{ fontSize: 15, fontWeight: 700 }}>{t.target_name}</div>
                         {t.rating && (
-                          <span title={`${ratingLabel(t.rating)} out of 5`} style={{ color: "#fbbf24", fontSize: 12, fontWeight: 800, background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.24)", borderRadius: 6, padding: "2px 7px" }}>
-                            {ratingLabel(t.rating)}/5
-                          </span>
+                          <RatingDisplay value={t.rating} />
                         )}
                       </div>
                       {t.description && (
