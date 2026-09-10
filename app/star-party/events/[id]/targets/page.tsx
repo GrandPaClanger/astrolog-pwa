@@ -85,6 +85,55 @@ function RatingDisplay({ value }: { value: number }) {
   );
 }
 
+function RatingInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const rating = value ? Number(value) : null;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div role="radiogroup" aria-label="Rating" style={{ display: "inline-flex", gap: 2 }}>
+        {[1, 2, 3, 4, 5].map(star => {
+          const fillPercent = rating ? Math.max(0, Math.min(1, rating - star + 1)) * 100 : 0;
+          const leftValue = star === 1 ? 1 : star - 0.5;
+          const rightValue = star === 1 ? 1.5 : star;
+
+          return (
+            <span key={star} style={{ position: "relative", display: "inline-block", width: 26, height: 26, color: "rgba(255,255,255,0.24)", lineHeight: "26px", fontSize: 24 }}>
+              ★
+              <span style={{ position: "absolute", left: 0, top: 0, width: `${fillPercent}%`, overflow: "hidden", color: "#fbbf24", pointerEvents: "none" }}>
+                ★
+              </span>
+              <button
+                type="button"
+                aria-label={`${ratingLabel(leftValue)} stars`}
+                aria-pressed={rating === leftValue}
+                onClick={() => onChange(String(leftValue))}
+                style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", opacity: 0, border: 0, padding: 0, cursor: "pointer" }}
+              />
+              <button
+                type="button"
+                aria-label={`${ratingLabel(rightValue)} stars`}
+                aria-pressed={rating === rightValue}
+                onClick={() => onChange(String(rightValue))}
+                style={{ position: "absolute", right: 0, top: 0, width: "50%", height: "100%", opacity: 0, border: 0, padding: 0, cursor: "pointer" }}
+              />
+            </span>
+          );
+        })}
+      </div>
+      {rating && <span style={{ color: "#dbeafe", fontSize: 13, fontWeight: 800 }}>{ratingLabel(rating)}/5</span>}
+      {rating && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          style={{ border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.75)", borderRadius: 8, padding: "6px 9px", fontSize: 12, cursor: "pointer" }}
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function PlannedTargetsPage() {
   const params = useParams();
   const id = params.id as string;
@@ -354,42 +403,7 @@ export default function PlannedTargetsPage() {
               <label style={{ fontSize: 11, opacity: 0.6, marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 Rating
               </label>
-              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                {RATING_OPTIONS.map(value => {
-                  const selected = targetForm.rating === String(value);
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => updateTargetForm({ rating: String(value) })}
-                      aria-pressed={selected}
-                      title={`${ratingLabel(value)} stars`}
-                      style={{
-                        minWidth: 38,
-                        border: `1px solid ${selected ? "rgba(251,191,36,0.75)" : "rgba(255,255,255,0.14)"}`,
-                        background: selected ? "rgba(251,191,36,0.18)" : "rgba(255,255,255,0.04)",
-                        color: selected ? "#fbbf24" : "rgba(255,255,255,0.82)",
-                        borderRadius: 8,
-                        padding: "7px 8px",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {ratingLabel(value)}
-                    </button>
-                  );
-                })}
-                {targetForm.rating && (
-                  <button
-                    type="button"
-                    onClick={() => updateTargetForm({ rating: "" })}
-                    style={{ border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.75)", borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer" }}
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
+              <RatingInput value={targetForm.rating} onChange={rating => updateTargetForm({ rating })} />
             </div>
 
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
