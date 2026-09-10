@@ -122,12 +122,13 @@ export default function ToPickPage() {
       <h1 style={{ marginBottom: 2 }}>To Pick</h1>
       {event && <p style={{ fontSize: 13, opacity: 0.55, marginTop: 4, marginBottom: 16 }}>{event.name}</p>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6, marginBottom: 20 }}>
         <Link href={`/star-party/events/${id}`} style={tabStyle(false)}>Required</Link>
         <span style={tabStyle(true)}>To Pick</span>
         <Link href={`/star-party/events/${id}/pack`} style={tabStyle(false)}>To Pack</Link>
         <Link href={`/star-party/events/${id}/load`} style={tabStyle(false)}>To Load</Link>
         <Link href={`/star-party/events/${id}/off-plan`} style={tabStyle(false)}>Off Plan</Link>
+        <Link href={`/star-party/events/${id}/targets`} style={tabStyle(false)}>Targets</Link>
       </div>
 
       {loading ? (
