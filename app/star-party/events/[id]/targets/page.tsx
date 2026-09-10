@@ -18,6 +18,7 @@ type PlannedTarget = {
   camera_id: number | null;
   mount_id: number | null;
   filter_text: string | null;
+  rating: number | null;
   telescope: { name: string } | null;
   camera: { name: string } | null;
   mount: { name: string } | null;
@@ -30,6 +31,7 @@ type PlannedTargetForm = {
   camera_id: string;
   mount_id: string;
   filter_text: string;
+  rating: string;
 };
 
 const EMPTY_TARGET_FORM: PlannedTargetForm = {
@@ -39,7 +41,10 @@ const EMPTY_TARGET_FORM: PlannedTargetForm = {
   camera_id: "",
   mount_id: "",
   filter_text: "",
+  rating: "",
 };
+
+const RATING_OPTIONS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
 
 const tabStyle = (active: boolean): React.CSSProperties => ({
   flex: 1,
@@ -54,6 +59,17 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   textDecoration: "none",
   display: "block",
 });
+
+function ratingLabel(value: number) {
+  return Number.isInteger(value) ? `${value}` : `${Math.floor(value)}.5`;
+}
+
+function ratingStars(value: number | null) {
+  if (!value) return null;
+  const fullStars = Math.floor(value);
+  const hasHalf = value % 1 !== 0;
+  return `${"★".repeat(fullStars)}${hasHalf ? "½" : ""}`;
+}
 
 export default function PlannedTargetsPage() {
   const params = useParams();
@@ -78,7 +94,7 @@ export default function PlannedTargetsPage() {
       supabase.from("star_party_event").select("name, is_current").eq("event_id", id).single(),
       supabase
         .from("star_party_planned_target")
-        .select("planned_target_id, target_name, description, telescope_id, camera_id, mount_id, filter_text, telescope(name), camera(name), mount(name)")
+        .select("planned_target_id, target_name, description, telescope_id, camera_id, mount_id, filter_text, rating, telescope(name), camera(name), mount(name)")
         .eq("event_id", id)
         .order("target_name"),
       supabase.from("telescope").select("telescope_id, name").order("name"),
@@ -113,6 +129,7 @@ export default function PlannedTargetsPage() {
       camera_id: target.camera_id ? String(target.camera_id) : "",
       mount_id: target.mount_id ? String(target.mount_id) : "",
       filter_text: target.filter_text ?? "",
+      rating: target.rating ? String(target.rating) : "",
     });
     window.setTimeout(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -123,9 +140,13 @@ export default function PlannedTargetsPage() {
   function targetPayload() {
     const name = targetForm.target_name.trim();
     const filterText = targetForm.filter_text.trim();
+    const rating = targetForm.rating ? Number(targetForm.rating) : null;
     if (!name) throw new Error("Target name is required.");
     if (name.length > 50) throw new Error("Target name must be 50 characters or fewer.");
     if (filterText.length > 250) throw new Error("Filter must be 250 characters or fewer.");
+    if (rating !== null && (!RATING_OPTIONS.includes(rating))) {
+      throw new Error("Rating must be between 1 and 5 stars in half-star steps.");
+    }
 
     return {
       event_id: Number(id),
@@ -135,6 +156,7 @@ export default function PlannedTargetsPage() {
       camera_id: targetForm.camera_id ? Number(targetForm.camera_id) : null,
       mount_id: targetForm.mount_id ? Number(targetForm.mount_id) : null,
       filter_text: filterText || null,
+      rating,
     };
   }
 
@@ -314,6 +336,48 @@ export default function PlannedTargetsPage() {
               <div style={{ marginTop: 4, fontSize: 11, opacity: 0.45 }}>{targetForm.filter_text.length}/250</div>
             </div>
 
+            <div>
+              <label style={{ fontSize: 11, opacity: 0.6, marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Rating
+              </label>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                {RATING_OPTIONS.map(value => {
+                  const selected = targetForm.rating === String(value);
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => updateTargetForm({ rating: String(value) })}
+                      aria-pressed={selected}
+                      title={`${ratingLabel(value)} stars`}
+                      style={{
+                        minWidth: 38,
+                        border: `1px solid ${selected ? "rgba(251,191,36,0.75)" : "rgba(255,255,255,0.14)"}`,
+                        background: selected ? "rgba(251,191,36,0.18)" : "rgba(255,255,255,0.04)",
+                        color: selected ? "#fbbf24" : "rgba(255,255,255,0.82)",
+                        borderRadius: 8,
+                        padding: "7px 8px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {ratingLabel(value)}
+                    </button>
+                  );
+                })}
+                {targetForm.rating && (
+                  <button
+                    type="button"
+                    onClick={() => updateTargetForm({ rating: "" })}
+                    style={{ border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.75)", borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer" }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
               {editingTargetId && (
                 <button
@@ -340,6 +404,7 @@ export default function PlannedTargetsPage() {
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {plannedTargets.map(t => {
+              const stars = ratingStars(t.rating);
               const equipment = [
                 t.telescope?.name ? `Scope: ${t.telescope.name}` : null,
                 t.camera?.name ? `Camera: ${t.camera.name}` : null,
@@ -358,7 +423,14 @@ export default function PlannedTargetsPage() {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700 }}>{t.target_name}</div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <div style={{ fontSize: 15, fontWeight: 700 }}>{t.target_name}</div>
+                        {stars && (
+                          <span title={`${ratingLabel(t.rating ?? 0)} stars`} style={{ color: "#fbbf24", fontSize: 13, fontWeight: 800 }}>
+                            {stars}
+                          </span>
+                        )}
+                      </div>
                       {t.description && (
                         <div style={{ fontSize: 13, opacity: 0.72, marginTop: 4, whiteSpace: "pre-wrap" }}>{t.description}</div>
                       )}

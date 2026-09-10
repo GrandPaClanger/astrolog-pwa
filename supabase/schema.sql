@@ -597,6 +597,7 @@ create table if not exists public.star_party_planned_target (
   camera_id         smallint references public.camera(camera_id) on delete set null,
   mount_id          smallint references public.mount(mount_id) on delete set null,
   filter_text       varchar(250),
+  rating            numeric(2,1) check (rating is null or (rating >= 1 and rating <= 5 and rating * 2 = trunc(rating * 2))),
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
