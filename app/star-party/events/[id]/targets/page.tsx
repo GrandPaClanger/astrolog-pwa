@@ -64,13 +64,6 @@ function ratingLabel(value: number) {
   return Number.isInteger(value) ? `${value}` : `${Math.floor(value)}.5`;
 }
 
-function ratingStars(value: number | null) {
-  if (!value) return null;
-  const fullStars = Math.floor(value);
-  const hasHalf = value % 1 !== 0;
-  return `${"★".repeat(fullStars)}${hasHalf ? "½" : ""}`;
-}
-
 export default function PlannedTargetsPage() {
   const params = useParams();
   const id = params.id as string;
@@ -404,7 +397,6 @@ export default function PlannedTargetsPage() {
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {plannedTargets.map(t => {
-              const stars = ratingStars(t.rating);
               const equipment = [
                 t.telescope?.name ? `Scope: ${t.telescope.name}` : null,
                 t.camera?.name ? `Camera: ${t.camera.name}` : null,
@@ -425,9 +417,9 @@ export default function PlannedTargetsPage() {
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <div style={{ fontSize: 15, fontWeight: 700 }}>{t.target_name}</div>
-                        {stars && (
-                          <span title={`${ratingLabel(t.rating ?? 0)} stars`} style={{ color: "#fbbf24", fontSize: 13, fontWeight: 800 }}>
-                            {stars}
+                        {t.rating && (
+                          <span title={`${ratingLabel(t.rating)} out of 5`} style={{ color: "#fbbf24", fontSize: 12, fontWeight: 800, background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.24)", borderRadius: 6, padding: "2px 7px" }}>
+                            {ratingLabel(t.rating)}/5
                           </span>
                         )}
                       </div>
