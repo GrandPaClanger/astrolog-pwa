@@ -134,6 +134,15 @@ function RatingInput({ value, onChange }: { value: string; onChange: (value: str
   );
 }
 
+function sortPlannedTargets(targets: PlannedTarget[]) {
+  return [...targets].sort((a, b) => {
+    const aRating = a.rating ?? -1;
+    const bRating = b.rating ?? -1;
+    if (aRating !== bRating) return bRating - aRating;
+    return a.target_name.localeCompare(b.target_name, undefined, { sensitivity: "base" });
+  });
+}
+
 export default function PlannedTargetsPage() {
   const params = useParams();
   const id = params.id as string;
@@ -159,13 +168,14 @@ export default function PlannedTargetsPage() {
         .from("star_party_planned_target")
         .select("planned_target_id, target_name, description, telescope_id, camera_id, mount_id, filter_text, rating, telescope(name), camera(name), mount(name)")
         .eq("event_id", id)
+        .order("rating", { ascending: false, nullsFirst: false })
         .order("target_name"),
       supabase.from("telescope").select("telescope_id, name").order("name"),
       supabase.from("camera").select("camera_id, name").order("name"),
       supabase.from("mount").select("mount_id, name").order("name"),
     ]);
     setEvent(evRes.data as EventMeta ?? null);
-    setPlannedTargets((ptRes.data as unknown as PlannedTarget[]) ?? []);
+    setPlannedTargets(sortPlannedTargets((ptRes.data as unknown as PlannedTarget[]) ?? []));
     setTelescopes(((telRes.data as any[]) ?? []).map(t => ({ id: t.telescope_id, name: t.name })));
     setCameras(((camRes.data as any[]) ?? []).map(c => ({ id: c.camera_id, name: c.name })));
     setMounts(((mountRes.data as any[]) ?? []).map(m => ({ id: m.mount_id, name: m.name })));
