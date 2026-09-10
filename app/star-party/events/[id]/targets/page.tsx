@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -69,6 +69,8 @@ export default function PlannedTargetsPage() {
   const [loading, setLoading] = useState(true);
   const [savingTarget, setSavingTarget] = useState(false);
   const [deletingTargetId, setDeletingTargetId] = useState<number | null>(null);
+  const formRef = useRef<HTMLDivElement | null>(null);
+  const targetNameRef = useRef<HTMLInputElement | null>(null);
 
   async function load() {
     setLoading(true);
@@ -112,6 +114,10 @@ export default function PlannedTargetsPage() {
       mount_id: target.mount_id ? String(target.mount_id) : "",
       filter_text: target.filter_text ?? "",
     });
+    window.setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      targetNameRef.current?.focus();
+    }, 0);
   }
 
   function targetPayload() {
@@ -196,19 +202,26 @@ export default function PlannedTargetsPage() {
           </span>
         </div>
 
-        <div style={{
-          border: "1px solid rgba(255,255,255,0.12)",
+        <div ref={formRef} style={{
+          scrollMarginTop: 12,
+          border: `1px solid ${editingTargetId ? "rgba(59,130,246,0.5)" : "rgba(255,255,255,0.12)"}`,
           borderRadius: 10,
           padding: 12,
-          background: "rgba(255,255,255,0.035)",
+          background: editingTargetId ? "rgba(59,130,246,0.07)" : "rgba(255,255,255,0.035)",
           marginBottom: 12,
         }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+            {editingTargetId && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#93c5fd" }}>
+                Editing target
+              </div>
+            )}
             <div>
               <label style={{ fontSize: 11, opacity: 0.6, marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 Target Name
               </label>
               <input
+                ref={targetNameRef}
                 value={targetForm.target_name}
                 onChange={e => updateTargetForm({ target_name: e.target.value.slice(0, 50) })}
                 maxLength={50}
