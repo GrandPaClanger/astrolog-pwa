@@ -13,9 +13,6 @@ type FutureTarget = {
   catalog_no: string;
   description: string | null;
   notes: string | null;
-  target_id: number | null;
-  session_id: number | null;
-  promoted_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -33,7 +30,11 @@ const EMPTY_FORM: FutureTargetForm = {
 };
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function ukDate(iso: string | null | undefined) {
@@ -66,8 +67,8 @@ export default function FutureTargetsPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("future_target")
-      .select("future_target_id,catalog_no,description,notes,target_id,session_id,promoted_at,created_at,updated_at")
-      .order("promoted_at", { ascending: true, nullsFirst: true })
+      .select("future_target_id,catalog_no,description,notes,created_at,updated_at")
+      .is("session_id", null)
       .order("catalog_no", { ascending: true });
 
     if (error) {
@@ -95,9 +96,6 @@ export default function FutureTargetsPage() {
       );
     });
   }, [rows, search]);
-
-  const pendingRows = filteredRows.filter((row) => !row.session_id);
-  const promotedRows = filteredRows.filter((row) => row.session_id);
 
   function updateForm(patch: Partial<FutureTargetForm>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -229,16 +227,14 @@ export default function FutureTargetsPage() {
       if (error) throw new Error(error.message);
       const sessionId = Number((data as any).session_id);
 
-      const update = await supabase
+      const removal = await supabase
         .from("future_target")
-        .update({
-          target_id: targetId,
-          session_id: sessionId,
-          promoted_at: new Date().toISOString(),
-        })
+        .delete()
         .eq("future_target_id", row.future_target_id);
 
-      if (update.error) throw new Error(update.error.message);
+      if (removal.error) throw new Error(removal.error.message);
+
+      setRows((items) => items.filter((item) => item.future_target_id !== row.future_target_id));
 
       router.push(`/sessions/edit?session_id=${sessionId}`);
       router.refresh();
@@ -249,7 +245,7 @@ export default function FutureTargetsPage() {
     }
   }
 
-  function renderRows(title: string, sectionRows: FutureTarget[], promoted: boolean) {
+  function renderRows(title: string, sectionRows: FutureTarget[]) {
     return (
       <section className="mb-8">
         <div className="flex items-center justify-between gap-3 mb-3">
@@ -269,7 +265,6 @@ export default function FutureTargetsPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="text-lg font-semibold text-blue-300">{row.catalog_no}</div>
-                      {row.session_id && <span className="badge-green">Session created</span>}
                     </div>
 
                     {row.description && <p className="text-slate-300 mt-1">{row.description}</p>}
@@ -277,30 +272,17 @@ export default function FutureTargetsPage() {
 
                     <div className="flex flex-wrap gap-2 mt-3 text-xs text-slate-500">
                       <span>Added {ukDate(row.created_at)}</span>
-                      {row.promoted_at && <span>Moved to sessions {ukDate(row.promoted_at)}</span>}
                     </div>
                   </div>
 
                   <div className="flex flex-wrap gap-2 sm:justify-end">
-                    {row.target_id && (
-                      <Link className="btn-secondary" href={`/targets/${row.target_id}`}>
-                        View Target
-                      </Link>
-                    )}
-                    {row.session_id && (
-                      <Link className="btn-secondary" href={`/sessions/edit?session_id=${row.session_id}`}>
-                        Edit Session
-                      </Link>
-                    )}
-                    {!promoted && (
-                      <button
-                        className="btn-primary"
-                        onClick={() => createSession(row)}
-                        disabled={promotingId === row.future_target_id}
-                      >
-                        {promotingId === row.future_target_id ? "Creating..." : "Create Session"}
-                      </button>
-                    )}
+                    <button
+                      className="btn-primary"
+                      onClick={() => createSession(row)}
+                      disabled={promotingId === row.future_target_id}
+                    >
+                      {promotingId === row.future_target_id ? "Creating..." : "Create Session"}
+                    </button>
                     <button className="btn-secondary" onClick={() => editTarget(row)} disabled={saving}>
                       Edit
                     </button>
@@ -405,8 +387,7 @@ export default function FutureTargetsPage() {
         <p className="text-slate-400 py-4">Loading...</p>
       ) : (
         <>
-          {renderRows("To Image", pendingRows, false)}
-          {renderRows("Moved To Sessions", promotedRows, true)}
+          {renderRows("To Image", filteredRows)}
         </>
       )}
     </div>
