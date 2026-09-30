@@ -352,11 +352,17 @@ export default function PlannedTargetsPage() {
                 <select
                   value=""
                   onChange={e => copyFutureTarget(e.target.value)}
-                  style={{ width: "100%", boxSizing: "border-box", padding: "9px 10px", borderRadius: 8, border: "1px solid rgba(134,239,172,0.35)", background: "rgba(134,239,172,0.08)", color: "white", fontSize: 14 }}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "9px 10px", borderRadius: 8, border: "1px solid rgba(134,239,172,0.35)", background: "#172033", color: "#f8fafc", colorScheme: "dark", fontSize: 14 }}
                 >
-                  <option value="">Select a future target...</option>
+                  <option value="" style={{ background: "#0f172a", color: "#f8fafc" }}>
+                    Select a future target...
+                  </option>
                   {futureTargets.map(target => (
-                    <option key={target.future_target_id} value={target.future_target_id}>
+                    <option
+                      key={target.future_target_id}
+                      value={target.future_target_id}
+                      style={{ background: "#0f172a", color: "#f8fafc" }}
+                    >
                       {target.catalog_no}{target.description ? ` - ${target.description}` : ""}
                     </option>
                   ))}
