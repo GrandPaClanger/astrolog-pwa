@@ -9,9 +9,16 @@ export const dynamic = "force-dynamic";
 
 type EventMeta = { name: string; is_current: boolean };
 type OptionRow = { id: number; name: string };
+type FutureTarget = {
+  future_target_id: number;
+  catalog_no: string;
+  description: string | null;
+  notes: string | null;
+};
 
 type PlannedTarget = {
   planned_target_id: number;
+  catalog_no: string | null;
   target_name: string;
   description: string | null;
   telescope_id: number | null;
@@ -25,6 +32,7 @@ type PlannedTarget = {
 };
 
 type PlannedTargetForm = {
+  catalog_no: string;
   target_name: string;
   description: string;
   telescope_id: string;
@@ -35,6 +43,7 @@ type PlannedTargetForm = {
 };
 
 const EMPTY_TARGET_FORM: PlannedTargetForm = {
+  catalog_no: "",
   target_name: "",
   description: "",
   telescope_id: "",
@@ -149,6 +158,7 @@ export default function PlannedTargetsPage() {
 
   const [event, setEvent] = useState<EventMeta | null>(null);
   const [plannedTargets, setPlannedTargets] = useState<PlannedTarget[]>([]);
+  const [futureTargets, setFutureTargets] = useState<FutureTarget[]>([]);
   const [telescopes, setTelescopes] = useState<OptionRow[]>([]);
   const [cameras, setCameras] = useState<OptionRow[]>([]);
   const [mounts, setMounts] = useState<OptionRow[]>([]);
@@ -162,20 +172,26 @@ export default function PlannedTargetsPage() {
 
   async function load() {
     setLoading(true);
-    const [evRes, ptRes, telRes, camRes, mountRes] = await Promise.all([
+    const [evRes, ptRes, futureRes, telRes, camRes, mountRes] = await Promise.all([
       supabase.from("star_party_event").select("name, is_current").eq("event_id", id).single(),
       supabase
         .from("star_party_planned_target")
-        .select("planned_target_id, target_name, description, telescope_id, camera_id, mount_id, filter_text, rating, telescope(name), camera(name), mount(name)")
+        .select("planned_target_id, catalog_no, target_name, description, telescope_id, camera_id, mount_id, filter_text, rating, telescope(name), camera(name), mount(name)")
         .eq("event_id", id)
         .order("rating", { ascending: false, nullsFirst: false })
         .order("target_name"),
+      supabase
+        .from("future_target")
+        .select("future_target_id, catalog_no, description, notes")
+        .is("session_id", null)
+        .order("catalog_no"),
       supabase.from("telescope").select("telescope_id, name").order("name"),
       supabase.from("camera").select("camera_id, name").order("name"),
       supabase.from("mount").select("mount_id, name").order("name"),
     ]);
     setEvent(evRes.data as EventMeta ?? null);
     setPlannedTargets(sortPlannedTargets((ptRes.data as unknown as PlannedTarget[]) ?? []));
+    setFutureTargets((futureRes.data as FutureTarget[]) ?? []);
     setTelescopes(((telRes.data as any[]) ?? []).map(t => ({ id: t.telescope_id, name: t.name })));
     setCameras(((camRes.data as any[]) ?? []).map(c => ({ id: c.camera_id, name: c.name })));
     setMounts(((mountRes.data as any[]) ?? []).map(m => ({ id: m.mount_id, name: m.name })));
@@ -196,6 +212,7 @@ export default function PlannedTargetsPage() {
   function editTarget(target: PlannedTarget) {
     setEditingTargetId(target.planned_target_id);
     setTargetForm({
+      catalog_no: target.catalog_no ?? "",
       target_name: target.target_name,
       description: target.description ?? "",
       telescope_id: target.telescope_id ? String(target.telescope_id) : "",
@@ -211,9 +228,11 @@ export default function PlannedTargetsPage() {
   }
 
   function targetPayload() {
+    const catalogNo = targetForm.catalog_no.trim();
     const name = targetForm.target_name.trim();
     const filterText = targetForm.filter_text.trim();
     const rating = targetForm.rating ? Number(targetForm.rating) : null;
+    if (catalogNo.length > 50) throw new Error("Catalogue number must be 50 characters or fewer.");
     if (!name) throw new Error("Target name is required.");
     if (name.length > 50) throw new Error("Target name must be 50 characters or fewer.");
     if (filterText.length > 250) throw new Error("Filter must be 250 characters or fewer.");
@@ -223,6 +242,7 @@ export default function PlannedTargetsPage() {
 
     return {
       event_id: Number(id),
+      catalog_no: catalogNo || null,
       target_name: name,
       description: targetForm.description.trim() || null,
       telescope_id: targetForm.telescope_id ? Number(targetForm.telescope_id) : null,
@@ -231,6 +251,19 @@ export default function PlannedTargetsPage() {
       filter_text: filterText || null,
       rating,
     };
+  }
+
+  function copyFutureTarget(futureTargetId: string) {
+    if (!futureTargetId) return;
+    const futureTarget = futureTargets.find(target => target.future_target_id === Number(futureTargetId));
+    if (!futureTarget) return;
+
+    updateTargetForm({
+      catalog_no: futureTarget.catalog_no,
+      target_name: (futureTarget.description?.trim() || futureTarget.catalog_no).slice(0, 50),
+      description: futureTarget.notes ?? "",
+    });
+    window.setTimeout(() => targetNameRef.current?.focus(), 0);
   }
 
   async function saveTarget() {
@@ -311,6 +344,44 @@ export default function PlannedTargetsPage() {
                 Editing target
               </div>
             )}
+            {!editingTargetId && futureTargets.length > 0 && (
+              <div>
+                <label style={{ fontSize: 11, opacity: 0.6, marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Copy from Future Targets
+                </label>
+                <select
+                  value=""
+                  onChange={e => copyFutureTarget(e.target.value)}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "9px 10px", borderRadius: 8, border: "1px solid rgba(134,239,172,0.35)", background: "rgba(134,239,172,0.08)", color: "white", fontSize: 14 }}
+                >
+                  <option value="">Select a future target...</option>
+                  {futureTargets.map(target => (
+                    <option key={target.future_target_id} value={target.future_target_id}>
+                      {target.catalog_no}{target.description ? ` - ${target.description}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ marginTop: 5, fontSize: 11, opacity: 0.5 }}>
+                  Copies its details here without removing it from Future Targets.
+                </div>
+              </div>
+            )}
+            <div>
+              <label style={{ fontSize: 11, opacity: 0.6, marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Catalogue Number
+              </label>
+              <input
+                value={targetForm.catalog_no}
+                onChange={e => updateTargetForm({ catalog_no: e.target.value.slice(0, 50) })}
+                maxLength={50}
+                placeholder="M31, NGC 7000..."
+                style={{
+                  width: "100%", boxSizing: "border-box",
+                  background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.16)",
+                  borderRadius: 8, padding: "9px 10px", color: "white", fontSize: 15,
+                }}
+              />
+            </div>
             <div>
               <label style={{ fontSize: 11, opacity: 0.6, marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 Target Name
@@ -320,7 +391,7 @@ export default function PlannedTargetsPage() {
                 value={targetForm.target_name}
                 onChange={e => updateTargetForm({ target_name: e.target.value.slice(0, 50) })}
                 maxLength={50}
-                placeholder="M31, Veil Nebula, Saturn..."
+                placeholder="Andromeda Galaxy, Veil Nebula, Saturn..."
                 style={{
                   width: "100%", boxSizing: "border-box",
                   background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.16)",
@@ -461,6 +532,9 @@ export default function PlannedTargetsPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        {t.catalog_no && (
+                          <div style={{ fontSize: 15, fontWeight: 800, color: "#93c5fd" }}>{t.catalog_no}</div>
+                        )}
                         <div style={{ fontSize: 15, fontWeight: 700 }}>{t.target_name}</div>
                         {t.rating && (
                           <RatingDisplay value={t.rating} />

@@ -632,6 +632,7 @@ create table if not exists public.star_party_planned_target (
   planned_target_id bigserial primary key,
   event_id          bigint not null references public.star_party_event(event_id) on delete cascade,
   person_id         bigint not null references public.person(person_id) on delete cascade,
+  catalog_no        text check (catalog_no is null or char_length(catalog_no) <= 50),
   target_name       varchar(50) not null,
   description       text,
   telescope_id      bigint references public.telescope(telescope_id) on delete set null,
