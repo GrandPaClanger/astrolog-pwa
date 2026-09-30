@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const NAV_CARDS = [
   { href: "/targets",          label: "Targets",          desc: "Browse and manage your astronomical targets" },
+  { href: "/future-targets",   label: "Future Targets",   desc: "Plan possible targets before you image them" },
   { href: "/sessions/new",     label: "New Session",      desc: "Log a new imaging session" },
   { href: "/maintenance",      label: "Maintenance",      desc: "Manage equipment lists and lookup data" },
   { href: "/flat-wizard",      label: "Flat Wizard",      desc: "NINA flat wizard settings by telescope and camera" },

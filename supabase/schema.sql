@@ -183,6 +183,25 @@ create index if not exists ix_session_person on public.session(person_id);
 create index if not exists ix_session_target on public.session(target_id);
 create index if not exists ix_session_date on public.session(session_date);
 
+create table if not exists public.future_target (
+  future_target_id bigserial primary key,
+  person_id        bigint not null references public.person(person_id) on delete cascade,
+  catalog_no       text not null,
+  catalog_no_norm  text generated always as (lower(catalog_no)) stored,
+  description      text,
+  notes            text,
+  target_id        bigint references public.target(target_id) on delete set null,
+  session_id       bigint references public.session(session_id) on delete set null,
+  promoted_at      timestamptz,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  unique (person_id, catalog_no_norm)
+);
+
+create index if not exists ix_future_target_person on public.future_target(person_id);
+create index if not exists ix_future_target_target on public.future_target(target_id);
+create index if not exists ix_future_target_session on public.future_target(session_id);
+
 -- One session can have multiple "image runs" (e.g., different nights/panels)
 create table if not exists public.image_run (
   image_run_id  bigserial primary key,
@@ -281,6 +300,11 @@ create trigger trg_session_updated_at
 before update on public.session
 for each row execute function public.set_updated_at();
 
+drop trigger if exists trg_future_target_updated_at on public.future_target;
+create trigger trg_future_target_updated_at
+before update on public.future_target
+for each row execute function public.set_updated_at();
+
 -- =============
 -- 5) Reporting views (what the UI will read most often)
 -- =============
@@ -355,6 +379,11 @@ for each row execute function public.set_person_id_from_auth();
 drop trigger if exists trg_session_person on public.session;
 create trigger trg_session_person
 before insert on public.session
+for each row execute function public.set_person_id_from_auth();
+
+drop trigger if exists trg_future_target_person on public.future_target;
+create trigger trg_future_target_person
+before insert on public.future_target
 for each row execute function public.set_person_id_from_auth();
 
 drop trigger if exists trg_image_run_person on public.image_run;
@@ -432,6 +461,16 @@ to authenticated
 using (person_id = public.current_person_id())
 with check (person_id = public.current_person_id());
 
+-- future_target
+alter table public.future_target enable row level security;
+
+drop policy if exists "future_target_crud_own" on public.future_target;
+create policy "future_target_crud_own"
+on public.future_target
+to authenticated
+using (person_id = public.current_person_id())
+with check (person_id = public.current_person_id());
+
 -- image_run
 alter table public.image_run enable row level security;
 
@@ -495,6 +534,8 @@ revoke insert, update, delete on public.mount from authenticated;
 revoke insert, update, delete on public.camera from authenticated;
 revoke insert, update, delete on public.filter from authenticated;
 revoke insert, update, delete on public.location from authenticated;
+grant select, insert, update, delete on public.future_target to authenticated;
+grant usage, select on sequence public.future_target_future_target_id_seq to authenticated;
 
 -- =============
 -- 7) Star Party Checklist

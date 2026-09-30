@@ -39,6 +39,9 @@ export function TopNav() {
             <Link href="/targets" className="text-slate-400 hover:text-slate-100 transition-colors">
               Targets
             </Link>
+            <Link href="/future-targets" className="text-slate-400 hover:text-slate-100 transition-colors">
+              Future Targets
+            </Link>
             <Link href="/sessions/new" className="text-slate-400 hover:text-slate-100 transition-colors">
               New Session
             </Link>
